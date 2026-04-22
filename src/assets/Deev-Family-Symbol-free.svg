@@ -1,0 +1,39 @@
+<svg width="400" height="400" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://w3.org">
+  <!-- Внешние границы -->
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#000" stroke-width="2" />
+  <circle cx="100" cy="100" r="70" fill="none" stroke="#000" stroke-width="1"/>
+
+  <!-- Пути для текста -->
+  <defs>
+    <!-- Верхняя дуга -->
+    <path id="arabicPath" d="M 15,108 A 85,85 00 0,1 185,108"/>
+     <!-- Нижняя дуга -->
+    <path id="bottomPath" d="M 30,116 A 70,70 0 0,0 170,116"/>
+  </defs>
+
+    <!-- Орнамент по кругу (стилизованные лилии/засечки) -->
+  <g transform="translate(100,100)">
+    <circle cx="0" cy="-86" r="3" fill="#000" />
+    <circle cx="0" cy="86" r="3" fill="#000" />
+    <circle cx="86" cy="0" r="3" fill="#000" />
+    <circle cx="-86" cy="0" r="3" fill="#000" />
+    
+    <!-- Дополнительные точки-акценты -->
+    <g transform="rotate(45)"><circle cx="0" cy="-86" r="2" fill="#000" /></g>
+    <g transform="rotate(135)"><circle cx="0" cy="-86" r="2" fill="#000" /></g>
+    <g transform="rotate(225)"><circle cx="0" cy="-86" r="2" fill="#000" /></g>
+    <g transform="rotate(315)"><circle cx="0" cy="-86" r="2" fill="#000" /></g>
+  </g>
+
+ 
+<!-- Центральный символ (Литера Д) -->
+  <g transform="translate(0, 5)">
+    <!-- Основание с легким изгибом -->
+    <path d="M65 125 Q100 120 135 125" fill="none" stroke="#000" stroke-width="6" />
+    <!-- Основная форма -->
+    <path d="M75 125 L100 65 L125 125" fill="none" stroke="#000" stroke-width="6" stroke-linejoin="round" />
+    <!-- Декоративный элемент внутри -->
+    <circle cx="100" cy="102" r="5" fill="#000" />
+  </g>
+  
+</svg>
