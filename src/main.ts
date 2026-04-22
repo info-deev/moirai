@@ -5,6 +5,8 @@ import App from './App.vue'
 import router from './router'
 import VueKonva from 'vue-konva'
 
+import '@/assets/style.css'
+
 const app = createApp(App)
 
 app.use(createPinia())
