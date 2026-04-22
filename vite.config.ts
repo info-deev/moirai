@@ -7,7 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/moirai/',
+  base: 'https://info-deev.github.io/moirai/',
   plugins: [vue(), vueDevTools(), tailwindcss()],
   resolve: {
     alias: {
