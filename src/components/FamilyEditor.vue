@@ -501,7 +501,7 @@ const deleteNode = () => {
     nodes.value.delete(menuState.nodeId)
     links.value = new Map(
       [...links.value].filter(
-        ([key, l]) => l.fromId !== menuState.nodeId && l.toId !== menuState.nodeId,
+        ([key, l]) => l.from !== menuState.nodeId && l.to !== menuState.nodeId,
       ),
     )
   }
