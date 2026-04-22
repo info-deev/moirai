@@ -14,11 +14,6 @@ jobs:
         run: |
           npm install
           npm run build
-
-      # Добавим этот шаг, чтобы в логах увидеть, создалась ли папка dist
-      - name: Check dist folder
-        run: ls -R dist
-
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
         with:
