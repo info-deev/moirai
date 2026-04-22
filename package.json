@@ -1,6 +1,6 @@
 {
-  "name": "moirai-v4",
-  "version": "0.0.0",
+  "name": "moirai",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
