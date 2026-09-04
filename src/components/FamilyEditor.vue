@@ -38,38 +38,114 @@
       >
         Экспорт в PNG
       </button>
+      <button
+        @click="openClearAllDialog"
+        :disabled="personList.length === 0"
+        class="bg-transparent text-red-400 px-3 py-1 rounded border border-red-800/60 transition-all hover:bg-red-900/30 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+      >
+        Очистить всё
+      </button>
       <div class="text-gray-400 text-[10px] uppercase tracking-widest ml-auto">
         Масштаб: {{ Math.round(stageConfig.scaleX * 100) }}%
       </div>
     </header>
 
     <div class="grow relative">
+      <!-- T8.1: Empty state — оверлей поверх холста, пока нет ни одной персоны -->
+      <div
+        v-if="personList.length === 0"
+        class="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-[2px]"
+      >
+        <div class="flex flex-col items-center gap-4 text-center">
+          <p class="text-lg font-medium text-gray-700">Дерево пока пустое</p>
+          <p class="max-w-xs text-sm text-gray-500">
+            Добавьте первую персону или загрузите ранее экспортированный JSON.
+          </p>
+          <div class="mt-2 flex gap-3">
+            <button
+              @click="addNode"
+              class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 active:scale-95"
+            >
+              Добавить персону
+            </button>
+            <button
+              @click="triggerFileInput"
+              class="rounded border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 active:scale-95"
+            >
+              Импорт JSON
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- T8.4: Панель зума (низ-центр) -->
+      <div
+        class="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-gray-800/90 px-2 py-1 text-sm text-gray-200 shadow-lg"
+      >
+        <button
+          @click="zoomBy(1 / 1.2)"
+          class="px-2 py-0.5 hover:bg-gray-700 rounded transition-colors"
+          title="Отдалить (−)"
+        >
+          −
+        </button>
+        <button
+          @click="resetView"
+          class="min-w-[64px] px-1 text-center text-xs tabular-nums hover:bg-gray-700 rounded transition-colors"
+          title="Сбросить вид (100%)"
+        >
+          {{ Math.round(stageConfig.scaleX * 100) }}%
+        </button>
+        <button
+          @click="zoomBy(1.2)"
+          class="px-2 py-0.5 hover:bg-gray-700 rounded transition-colors"
+          title="Приблизить (+)"
+        >
+          +
+        </button>
+      </div>
+
+      <!-- T8.3: Подсказка по управлению (низ-право) -->
+      <div class="pointer-events-none absolute bottom-4 right-4 z-30 rounded bg-gray-800/70 px-2 py-1 text-[10px] text-gray-300">
+        Колесо — зум · ЛКМ — перемещение · ПКМ — меню · Esc — отмена
+      </div>
+
       <v-stage
         ref="stageRef"
         :config="stageConfig"
         @wheel="handleWheel"
         @mousemove="handleStageMouseMove"
         @mouseup="handleStageMouseUp"
+        @click="handleStageClick"
       >
         <v-layer>
           <!-- Постоянные связи -->
-          <v-line v-for="link in links.values()" :key="link.id" :config="getLinkConfig(link)" />
+          <v-line
+            v-for="link in relationshipList"
+            :key="link.id"
+            :config="getLinkConfig(link)"
+            @click="selectRelationship(link.id)"
+            @contextmenu="(e: Konva.KonvaEventObject<MouseEvent>) => openLinkContextMenu(e, link.id)"
+          />
 
           <!-- Временная связь (при перетаскивании из пина) -->
           <v-line v-if="pendingLink" :config="getPendingLinkConfig()" />
 
           <!-- Узлы -->
           <v-group
-            v-for="node in nodes.values()"
+            v-for="node in personList"
             :key="node.id"
             :config="{
               x: node.x,
               y: node.y,
               draggable: true,
-              ondragmove: (e: any) => handleDragMove(e, node),
-              oncontextmenu: (e: any) => openContextMenu(e, node.id),
+              ondragmove: (e: Konva.KonvaEventObject<MouseEvent>) => handleDragMove(e, node),
+              ondragend: (e: Konva.KonvaEventObject<MouseEvent>) =>
+                familyStore.debouncedUpdatePosition(node.id, e.target.x(), e.target.y()),
+              oncontextmenu: (e: Konva.KonvaEventObject<MouseEvent>) => openContextMenu(e, node.id),
               onMouseenter: () => (hoveredNodeId = node.id),
               onMouseleave: () => (hoveredNodeId = null),
+              onclick: () => selectPerson(node.id),
             }"
           >
             <!-- Тело -->
@@ -79,8 +155,8 @@
                 height: CARD_SIZE.height,
                 fill: '#ffffff',
                 cornerRadius: 6,
-                stroke: '#6a7282',
-                strokeWidth: 0,
+                stroke: selectedPersonId === node.id ? '#2563eb' : '#6a7282',
+                strokeWidth: selectedPersonId === node.id ? 2 : 0,
                 shadowBlur: 10,
                 shadowOpacity: 0.3,
               }"
@@ -188,18 +264,28 @@
         >
           Варианты
         </div>
-        <button
-          @click="isOpenPersonEditModal = true"
-          class="w-full text-left px-3 py-1.5 hover:bg-gray-700"
-        >
-          Изменить
-        </button>
-        <button
-          @click="deleteNode"
-          class="w-full text-left px-3 py-1.5 hover:bg-red-900/30 hover:text-red-400 transition-colors"
-        >
-          Удалить
-        </button>
+        <template v-if="menuState.nodeId">
+          <button
+            @click="isOpenPersonEditModal = true"
+            class="w-full text-left px-3 py-1.5 hover:bg-gray-700"
+          >
+            Изменить
+          </button>
+          <button
+            @click="deleteNode"
+            class="w-full text-left px-3 py-1.5 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+          >
+            Удалить персону
+          </button>
+        </template>
+        <template v-if="menuState.linkId">
+          <button
+            @click="deleteLink"
+            class="w-full text-left px-3 py-1.5 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+          >
+            Удалить связь
+          </button>
+        </template>
         <button @click="closeContextMenu" class="w-full text-left px-3 py-1.5 hover:bg-gray-700">
           Отмена
         </button>
@@ -207,16 +293,39 @@
     </div>
     <PersonEditModal
       :is-open="isOpenPersonEditModal"
-      :person="nodes.get(menuState.nodeId || '') || null"
+      :person="familyStore.getPerson(menuState.nodeId ?? '') ?? null"
       @save="editNode"
       @close="isOpenPersonEditModal = false"
     />
+
+    <!-- T8.2: Подтверждение удаления персоны -->
+    <ConfirmDialog
+      :is-open="confirmDelete.visible"
+      title="Удалить персону?"
+      message="Персона и все её связи будут удалены без возможности восстановления."
+      @confirm="handleConfirmDelete"
+      @close="confirmDelete.visible = false"
+    />
+
+
+    <!-- Подтверждение очистки всех данных -->
+    <ConfirmDialog
+      :is-open="confirmClearAll.visible"
+      title="Очистить все данные?"
+      message="Все персоны и связи будут удалены без возможности восстановления."
+      confirm-label="Очистить"
+      @confirm="handleConfirmClearAll"
+      @close="confirmClearAll.visible = false"
+    />
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import Konva from 'konva'
+import type { VueKonvaRef } from 'vue-konva'
+import { storeToRefs } from 'pinia'
 import {
   Axis,
   CARD_SIZE,
@@ -225,24 +334,13 @@ import {
   type Person,
   type Relationship,
 } from '@/types/types'
+import { useFamilyStore } from '@/stores/familyStore'
 import PersonEditModal from './PersonEditModal.vue'
-import logoSvgUrl from '@/assets/Deev-Family-Symbol-free.svg'
-
-// --- Типизация ---
-// interface NodeData {
-//   id: string
-//   name: string
-//   x: number
-//   y: number
-//   color: string
-// }
-
-// interface LinkData {
-//   id: string
-//   fromId: string
-//   toId: string
-//   type: RelationshipType
-// }
+import ConfirmDialog from './ConfirmDialog.vue'
+import { useToast } from '@/composables/useToast'
+import { exportStageToPng } from '@/utils/exportPng'
+import { downloadBlob } from '@/utils/download'
+import { deserializeGraph, serializeGraph } from '@/utils/serialization'
 
 interface PendingLink {
   fromId: string
@@ -256,14 +354,44 @@ const menuState = reactive({
   x: 0,
   y: 0,
   nodeId: null as string | null,
+  linkId: null as string | null,
 })
 
+// T8.2: состояние подтверждения удаления персоны
+const confirmDelete = reactive({
+  visible: false,
+  nodeId: null as string | null,
+})
+
+// Состояние подтверждения очистки всех данных
+const confirmClearAll = reactive({
+  visible: false,
+})
+
+
+
+const { success, error } = useToast()
+
 // --- Состояние ---
-const stageRef = ref<any>(null)
-const nodes = ref<Map<string, Person>>(new Map())
-// Ключ будет строкой "fromId:toId"
-const links = ref<Map<string, Relationship>>(new Map())
+const stageRef = ref<VueKonvaRef<Konva.Stage> | null>(null)
 const pendingLink = ref<PendingLink | null>(null)
+
+// Единый источник истины: граф живёт в store (Record-структуры, ключ связи — "fromId:toId")
+const familyStore = useFamilyStore()
+const {
+  persons,
+  relationships,
+  personList,
+  relationshipList,
+  selectedPersonId,
+  selectedRelationshipId,
+} = storeToRefs(familyStore)
+const { selectPerson, selectRelationship } = familyStore
+
+// T8.4: границы зума и шаг кнопок панели
+const MIN_ZOOM = 0.25
+const MAX_ZOOM = 4
+const ZOOM_STEP = 1.2
 
 const stageConfig = reactive({
   width: window.innerWidth,
@@ -275,9 +403,20 @@ const stageConfig = reactive({
   y: 0,
 })
 
+/**
+ * Безопасный доступ к Konva Stage через vue-konva ref.
+ * @returns {Konva.Stage | null} сцена или null, если stage ещё не смонтирован
+ */
+const getStage = () => stageRef.value?.getStage() ?? null
+
 const hoveredNodeId = ref<string | null>(null)
 const isOpenPersonEditModal = ref(false)
 
+/**
+ * Цвет заголовка карточки в зависимости от пола персоны.
+ * @param {Person} node - персона, для которой подбирается цвет
+ * @returns {string} hex-цвет фона заголовка
+ */
 const getTitleBackgroundColor = (node: Person) => {
   if (node.gender === Gender.MALE) {
     return '#0069a8'
@@ -288,34 +427,34 @@ const getTitleBackgroundColor = (node: Person) => {
   return '#4a5565'
 }
 
-// Вспомогательная функция для генерации ключа
-const getLinkKey = (fromId: string, toId: string) => `${fromId}:${toId}`
-
 // --- Функции ---
 
+/**
+ * Создаёт новую персону в центре сцены (делегирование в store).
+ */
 const addNode = () => {
-  const id = self.crypto.randomUUID()
-  const stage = stageRef.value.getStage()
-  // Вычисляем центр экрана с учетом текущего зума и смещения
-  const x = (window.innerWidth / 2 - stage.x()) / stage.scaleX()
-  const y = (window.innerHeight / 2 - stage.y()) / stage.scaleY()
-
-  nodes.value.set(id, {
-    id,
-    firstName: '-',
-    lastName: '-',
-    gender: Gender.UNKNOWN,
-    x: x - 80,
-    y: y - 45,
-  })
+  if (!stageRef.value) return
+  familyStore.addPerson(stageRef.value)
 }
 
-const handleDragMove = (e: any, node: Person) => {
-  node.x = e.target.x()
-  node.y = e.target.y()
+/**
+ * Обработчик drag: обновляет позицию карточки в store.
+ * @param {Konva.KonvaEventObject<MouseEvent>} e - событие перетаскивания
+ * @param {Person} node - персона, чья карточка перетаскивается
+ */
+const handleDragMove = (e: Konva.KonvaEventObject<MouseEvent>, node: Person) => {
+  familyStore.updatePosition(node.id, e.target.x(), e.target.y())
 }
 
-// Создание кривой Безье
+/**
+ * Расчёт контрольных точек кривой Безье для связи между персонами.
+ * @param {number} x1 - X начала связи
+ * @param {number} y1 - Y начала связи
+ * @param {number} x2 - X конца связи
+ * @param {number} y2 - Y конца связи
+ * @param {Axis} [axis=Axis.X] - ось изгиба кривой
+ * @returns {number[]} массив `[x1, y1, cx1, cy1, cx2, cy2, x2, y2]` для Konva.Line
+ */
 const calculateBezier = (x1: number, y1: number, x2: number, y2: number, axis: Axis = Axis.X) => {
   if (axis === Axis.X) {
     const dist = Math.abs(x2 - x1) * 0.5
@@ -325,12 +464,18 @@ const calculateBezier = (x1: number, y1: number, x2: number, y2: number, axis: A
   return [x1, y1, x1, y1 + dist, x2, y2 - dist, x2, y2]
 }
 
+/**
+ * Конфигурация Konva.Line для готовой связи: точки Безье, цвет по типу,
+ * градиентная пунктирная линия для мужских blood-связей.
+ * @param {Relationship} link - связь между персонами
+ * @returns {Konva.LineConfig} конфигурация линии
+ */
 const getLinkConfig = (link: Relationship) => {
-  const from = nodes.value.get(link.from)
-  const to = nodes.value.get(link.to)
+  const from = familyStore.getPerson(link.from)
+  const to = familyStore.getPerson(link.to)
   if (!from || !to) return { points: [] }
 
-  const result: any = {
+  const result: Konva.LineConfig = {
     points: calculateBezier(
       link.type === RelationshipType.BLOOD
         ? from.x + CARD_SIZE.width
@@ -343,10 +488,9 @@ const getLinkConfig = (link: Relationship) => {
       link.type === RelationshipType.BLOOD ? Axis.X : Axis.Y,
     ),
     stroke: link.type === RelationshipType.BLOOD ? '#00a6f4' : '#ff6900',
-    strokeWidth: 2,
+    strokeWidth: selectedRelationshipId.value === link.id ? 4 : 2,
     bezier: true,
     lineCap: 'round',
-    listening: false,
   }
 
   if (from.gender === Gender.MALE && link.type === RelationshipType.BLOOD) {
@@ -364,12 +508,16 @@ const getLinkConfig = (link: Relationship) => {
   return result
 }
 
+/**
+ * Конфигурация пунктирной линии при перетаскивании новой связи.
+ * @returns {Konva.LineConfig | {}} конфигурация pending-линии или пустой объект, если связь не создаётся
+ */
 const getPendingLinkConfig = () => {
   if (!pendingLink.value) return {}
-  const from = nodes.value.get(pendingLink.value!.fromId)
+  const from = familyStore.getPerson(pendingLink.value!.fromId)
   if (!from) return {}
 
-  const result: any = {
+  const result: Konva.LineConfig = {
     points: calculateBezier(
       pendingLink.value.type === RelationshipType.BLOOD
         ? from.x + CARD_SIZE.width
@@ -405,20 +553,37 @@ const getPendingLinkConfig = () => {
 
 // --- События мыши для связей ---
 
-const startLinking = (e: any, nodeId: string, type: RelationshipType = RelationshipType.BLOOD) => {
+/**
+ * Начало создания связи: фиксирует исходную ноду и позицию курсора в scene-координатах.
+ * @param {Konva.KonvaEventObject<MouseEvent | TouchEvent>} e - событие нажатия на пин
+ * @param {string} nodeId - id персоны, от которой начинается связь
+ * @param {RelationshipType} [type=RelationshipType.BLOOD] - тип создаваемой связи
+ */
+const startLinking = (
+  e: Konva.KonvaEventObject<MouseEvent>,
+  nodeId: string,
+  type: RelationshipType = RelationshipType.BLOOD,
+) => {
   e.cancelBubble = true // Останавливаем всплытие, чтобы не начал двигаться фон
-  const stage = stageRef.value.getStage()
+  const stage = getStage()
+  if (!stage) return
   const pointer = stage.getPointerPosition()
+  if (!pointer) return
   const transform = stage.getAbsoluteTransform().copy().invert()
   const pos = transform.point(pointer)
 
   pendingLink.value = { fromId: nodeId, mouseX: pos.x, mouseY: pos.y, type }
 }
 
-const handleStageMouseMove = (e: any) => {
+/**
+ * Обновляет координаты курсора в pendingLink при перетаскивании новой связи.
+ */
+const handleStageMouseMove = () => {
   if (!pendingLink.value) return
-  const stage = stageRef.value.getStage()
+  const stage = getStage()
+  if (!stage) return
   const pointer = stage.getPointerPosition()
+  if (!pointer) return
   const transform = stage.getAbsoluteTransform().copy().invert()
   const pos = transform.point(pointer)
 
@@ -426,207 +591,288 @@ const handleStageMouseMove = (e: any) => {
   pendingLink.value.mouseY = pos.y
 }
 
+/**
+ * Завершает создание связи: добавляет relationship в store (если from ≠ to) и сбрасывает pendingLink.
+ * @param {string} toId - id персоны-получателя
+ * @param {RelationshipType} [type=RelationshipType.BLOOD] - тип создаваемой связи
+ */
 const finishLinking = (toId: string, type: RelationshipType = RelationshipType.BLOOD) => {
   if (pendingLink.value && pendingLink.value.fromId !== toId) {
-    const linkKey = getLinkKey(pendingLink.value!.fromId, toId)
-    const exists = links.value.has(linkKey)
-
-    if (!exists) {
-      links.value.set(linkKey, {
-        id: `l-${Math.random()}`,
-        from: pendingLink.value.fromId,
-        to: toId,
-        type,
-      })
-    }
+    familyStore.addRelationship(pendingLink.value.fromId, toId, type)
   }
   pendingLink.value = null
 }
 
+/**
+ * Отмена создания связи при отпускании мыши вне пина.
+ */
 const handleStageMouseUp = () => {
   pendingLink.value = null
 }
 
+/**
+ * Клик по пустому месту сцены — сброс выделения (ноды/связи обрабатывают клик сами).
+ * @param {Konva.KonvaEventObject<MouseEvent>} e - событие клика
+ */
+const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+  if (e.target !== e.target.getStage()) return
+  familyStore.selectPerson(null)
+}
+
 // --- Зум ---
-const handleWheel = (e: any) => {
+/**
+ * Ограничение масштаба диапазону [MIN_ZOOM, MAX_ZOOM].
+ * @param {number} scale - желаемый масштаб
+ */
+const clampZoom = (scale: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale))
+
+/**
+ * Зум сцены колёсиком мыши вокруг курсора (коэффициент ×/÷ 1.1, границы MIN/MAX_ZOOM).
+ * @param {Konva.KonvaEventObject<WheelEvent>} e - событие прокрутки колеса
+ */
+const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
   e.evt.preventDefault()
   const stage = e.target.getStage()
+  if (!stage) return
   const oldScale = stage.scaleX()
   const pointer = stage.getPointerPosition()
+  if (!pointer) return
 
-  const scaleBy = 1.1
-  const newScale = e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy
+  const newScale = clampZoom(e.evt.deltaY < 0 ? oldScale * ZOOM_STEP : oldScale / ZOOM_STEP)
+  applyZoom(newScale, pointer.x, pointer.y)
+}
 
+/**
+ * Применяет масштаб вокруг заданной точки (в координатах контейнера stage).
+ * @param {number} newScale - целевой масштаб
+ * @param {number} px - X опорной точки
+ * @param {number} py - Y опорной точки
+ */
+const applyZoom = (newScale: number, px: number, py: number) => {
+  const stage = getStage()
+  if (!stage) return
+  const oldScale = stage.scaleX()
   stage.scale({ x: newScale, y: newScale })
   stageConfig.scaleX = newScale // Для UI счетчика
 
   const mousePointTo = {
-    x: (pointer.x - stage.x()) / oldScale,
-    y: (pointer.y - stage.y()) / oldScale,
+    x: (px - stage.x()) / oldScale,
+    y: (py - stage.y()) / oldScale,
   }
-
-  const newPos = {
-    x: pointer.x - mousePointTo.x * newScale,
-    y: pointer.y - mousePointTo.y * newScale,
-  }
-  stage.position(newPos)
+  stage.position({
+    x: px - mousePointTo.x * newScale,
+    y: py - mousePointTo.y * newScale,
+  })
 }
 
-const openContextMenu = (e: any, nodeId: string) => {
+/**
+ * Кнопки панели зума: масштаб вокруг центра сцены.
+ * @param {number} factor - множитель (1.2 — приближение, 1/1.2 — отдаление)
+ */
+const zoomBy = (factor: number) => {
+  const stage = getStage()
+  if (!stage) return
+  const newScale = clampZoom(stage.scaleX() * factor)
+  applyZoom(newScale, stage.width() / 2, stage.height() / 2)
+}
+
+/**
+ * Сброс вида: масштаб 100% и сдвиг в ноль.
+ */
+const resetView = () => {
+  const stage = getStage()
+  if (!stage) return
+  stage.scale({ x: 1, y: 1 })
+  stage.position({ x: 0, y: 0 })
+  stageConfig.scaleX = 1
+}
+
+/**
+ * Обработчик клавиатуры: Esc — отмена создания связи и закрытие меню.
+ */
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    pendingLink.value = null
+    closeContextMenu()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
+
+/**
+ * Показ контекстного меню в позиции курсора для выбранной персоны.
+ * @param {Konva.KonvaEventObject<MouseEvent | TouchEvent>} e - событие клика по карточке
+ * @param {string} nodeId - id персоны, для которой открывается меню
+ */
+const openContextMenu = (e: Konva.KonvaEventObject<MouseEvent>, nodeId: string) => {
   // Останавливаем стандартное меню браузера
   e.evt.preventDefault()
   e.cancelBubble = true
 
-  // Получаем позицию мыши относительно окна браузера
-  const stage = stageRef.value.getStage()
+  const stage = getStage()
+  if (!stage) return
   const container = stage.container().getBoundingClientRect()
   const pointer = stage.getPointerPosition()
+  if (!pointer) return
 
   menuState.x = container.left + pointer.x
   menuState.y = container.top + pointer.y
   menuState.nodeId = nodeId
+  menuState.linkId = null
   menuState.visible = true
 
   // Закрываем меню при клике в любом месте
   window.addEventListener('click', closeContextMenu, { once: true })
 }
 
+/**
+ * Контекстное меню связи (ПКМ по линии): предлагает удалить связь.
+ * @param {Konva.KonvaEventObject<MouseEvent>} e - событие клика по линии
+ * @param {string} linkId - id связи
+ */
+const openLinkContextMenu = (e: Konva.KonvaEventObject<MouseEvent>, linkId: string) => {
+  e.evt.preventDefault()
+  e.cancelBubble = true
+
+  const stage = getStage()
+  if (!stage) return
+  const container = stage.container().getBoundingClientRect()
+  const pointer = stage.getPointerPosition()
+  if (!pointer) return
+
+  menuState.x = container.left + pointer.x
+  menuState.y = container.top + pointer.y
+  menuState.linkId = linkId
+  menuState.nodeId = null
+  menuState.visible = true
+
+  window.addEventListener('click', closeContextMenu, { once: true })
+}
+
+/**
+ * Скрывает контекстное меню.
+ */
 const closeContextMenu = () => {
   menuState.visible = false
 }
 
+/**
+ * Открывает диалог подтверждения удаления персоны (T8.2).
+ */
 const deleteNode = () => {
-  if (menuState.nodeId) {
-    // Удаляем ноду и все связи с ней
-    nodes.value.delete(menuState.nodeId)
-    links.value = new Map(
-      [...links.value].filter(
-        ([key, l]) => l.from !== menuState.nodeId && l.to !== menuState.nodeId,
-      ),
-    )
+  if (!menuState.nodeId) return
+  confirmDelete.nodeId = menuState.nodeId
+  confirmDelete.visible = true
+  closeContextMenu()
+}
+
+/**
+ * Подтверждённое удаление персоны: каскад через store + тост.
+ */
+const handleConfirmDelete = () => {
+  if (confirmDelete.nodeId) {
+    familyStore.removePerson(confirmDelete.nodeId)
+    success('Персона удалена')
+  }
+  confirmDelete.visible = false
+  confirmDelete.nodeId = null
+}
+
+/**
+ * Открывает диалог подтверждения очистки всех данных.
+ */
+const openClearAllDialog = () => {
+  closeContextMenu()
+  confirmClearAll.visible = true
+}
+
+/**
+ * Подтверждённая очистка: сброс store, закрытие висящего UI, тост.
+ */
+const handleConfirmClearAll = () => {
+  familyStore.clearAll()
+  pendingLink.value = null
+  isOpenPersonEditModal.value = false
+  closeContextMenu()
+  confirmClearAll.visible = false
+  success('Все данные очищены')
+}
+
+
+/**
+ * Удаляет связь из контекстного меню + тост.
+ */
+const deleteLink = () => {
+  if (menuState.linkId) {
+    familyStore.removeRelationship(menuState.linkId)
+    success('Связь удалена')
   }
   closeContextMenu()
 }
 
+/**
+ * Сохранение изменений персоны из модалки в store.
+ * @param {Person} node - обновлённая персона
+ */
 const editNode = (node: Person) => {
-  nodes.value.set(node.id, node)
+  familyStore.updatePerson(node)
 }
 
+/**
+ * Клик по пину: удаляет все входящие связи персоны для переподключения.
+ * @param {Person} node - персона, на пин которой кликнули
+ */
 const handlePinClick = (node: Person) => {
-  let keyToDelete = null
-
-  // Итерируемся по всему Map
-  for (const [key, value] of links.value) {
-    if (value.to === node.id) {
-      keyToDelete = key // Запоминаем (каждое новое совпадение перезапишет старое)
-    }
-  }
-
-  // Если нашли, удаляем
-  if (keyToDelete !== null) {
-    links.value.delete(keyToDelete)
-  }
+  familyStore.removeIncomingRelationships(node.id)
 }
 
+/**
+ * Экспорт сцены в PNG (делегирование в utils/exportPng): клон stage, белый фон,
+ * логотип, pixelRatio 2, скачивание файла. Успех/ошибка — тостом.
+ */
 const handleExportPNG = () => {
-  const stage = stageRef.value?.getNode() as Konva.Stage | undefined
+  const stage = getStage()
   if (!stage) return
 
-  // Создаем клон сцены
-  const tempStage = stage.clone()
-
-  // Сбрасываем его масштаб для расчетов
-  tempStage.scale({ x: 1, y: 1 })
-  tempStage.position({ x: 0, y: 0 })
-
-  // Находим границы контента
-  const box = tempStage.getClientRect({ skipTransform: false })
-
-  // Создаем фоновый слой (или Rect) специально для экспорта
-  const background = new Konva.Rect({
-    x: box.x,
-    y: box.y,
-    width: box.width,
-    height: box.height,
-    fill: 'white',
-    listening: false, // чтобы не мешал кликам
-  })
-
-  let svgNode: Konva.Image | null = null // Переменная для хранения ссылки
-  const layer = tempStage.getLayers()[0]
-
-  Konva.Image.fromURL(logoSvgUrl, (node: Konva.Image) => {
-    svgNode = node
-    svgNode
-      .width(50)
-      .height(50)
-      .position({
-        x: box.x + 10,
-        y: box.y + box.height - 60,
-      })
-
-    layer?.add(svgNode)
-    layer?.draw()
-  })
-
-  setTimeout(() => {
-    // Добавляем его в начало самого нижнего слоя
-    // const layer = tempStage.getLayers()[0]
-    layer?.add(background)
-    background.moveToBottom()
-    layer?.draw()
-
-    // 5. Экспорт
-    tempStage.toBlob({
-      x: box.x,
-      y: box.y,
-      width: box.width,
-      height: box.height,
-      pixelRatio: 2,
-      callback: (blob: Blob | null): void => {
-        tempStage.destroy()
-
-        if (!blob) return
-
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.download = 'exported_image.png'
-        link.href = url
-        link.click()
-
-        setTimeout(() => URL.revokeObjectURL(url), 100)
-      },
+  exportStageToPng(stage)
+    .then(() => success('PNG-файл сохранён'))
+    .catch((e: unknown) => {
+      console.error('Ошибка экспорта PNG:', e)
+      error('Не удалось экспортировать PNG')
     })
-  }, 100)
 }
 
-// Экспорт в JSON
+/**
+ * Экспорт графа (персоны + связи) в JSON-файл через serializeGraph/downloadBlob.
+ */
 const exportData = () => {
-  const data = {
-    nodes: Array.from(nodes.value.entries()),
-    links: Array.from(links.value.entries()),
-  }
-
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'graph-data.json'
-  link.click()
-
-  URL.revokeObjectURL(url)
+  const blob = new Blob([serializeGraph(persons.value, relationships.value)], {
+    type: 'application/json',
+  })
+  downloadBlob(blob, 'graph-data.json')
+  success('JSON-файл сохранён')
 }
 
 // Ссылка на скрытый input
 const fileInput = ref<HTMLInputElement | null>(null)
 
-// Функция, которая просто "кликает" по скрытому инпуту
+/**
+ * Программный клик по скрытому input[type=file] для запуска диалога импорта.
+ */
 const triggerFileInput = () => {
   fileInput.value?.click()
 }
 
-// Импорт из JSON
+/**
+ * Импорт графа из JSON-файла с валидацией через deserializeGraph.
+ * @param {Event} event - событие change от file input
+ */
 const importData = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
@@ -634,15 +880,20 @@ const importData = (event: Event) => {
   const reader = new FileReader()
   reader.onload = () => {
     try {
-      const { nodes: importedNodes, links: importedLinks } = JSON.parse(reader.result as string)
-
-      // Восстанавливаем Map из массивов entries
-      nodes.value = new Map(importedNodes)
-      links.value = new Map(importedLinks)
-
-      console.log('Данные успешно импортированы')
+      const parsed: unknown = JSON.parse(reader.result as string)
+      const result = deserializeGraph(parsed)
+      if (!result.ok) {
+        error(`Импорт отклонён: ${result.error}`)
+        return
+      }
+      familyStore.setGraph(result.data)
+      success('Данные успешно импортированы')
     } catch (e) {
       console.error('Ошибка при чтении JSON:', e)
+      error('Не удалось прочитать JSON-файл')
+    } finally {
+      // Сбрасываем value, чтобы повторный выбор того же файла снова вызывал change
+      input.value = ''
     }
   }
   if (input.files[0]) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, reactive } from 'vue'
+import { watch, reactive } from 'vue'
 import { Gender, type Person } from '@/types/types'
 
 interface Props {
@@ -35,6 +35,9 @@ watch(
   },
 )
 
+/**
+ * Сохранение формы: emit `save` с копией формы и закрытие модалки.
+ */
 const handleSave = () => {
   emit('save', { ...form })
   emit('close')

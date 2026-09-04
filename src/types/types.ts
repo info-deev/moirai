@@ -18,7 +18,7 @@ export interface Person {
   lastName: string
   gender: Gender
   birthDate?: string
-  metadata?: Record<string, any> // Для кастомных полей
+  metadata?: Record<string, unknown> // Для кастомных полей
 }
 
 export interface Relationship {
@@ -26,7 +26,7 @@ export interface Relationship {
   from: string
   to: string
   type: RelationshipType
-  metadata?: Record<string, any> // Для кастомных полей
+  metadata?: Record<string, unknown> // Для кастомных полей
 }
 
 export interface CardSize {
