@@ -13,9 +13,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.{test,spec}.ts'],
-    // Пока тесты не написаны (T7.2), `npm test` остаётся зелёным
-    passWithNoTests: true,
     coverage: {
       provider: 'v8',
       // Модули E7 (T7.2): покрытие ключевых путей > 80%

@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import Konva from 'konva'
 import { CARD_SIZE, Gender, RelationshipType, type Person, type Relationship } from '@/types/types'
 import { createId } from '@/utils/id'
+import { getLinkKey } from '@/utils/graphGeometry'
 import { deserializeGraph, serializeGraph, type GraphData } from '@/utils/serialization'
 
 /**
@@ -151,7 +152,7 @@ export const useFamilyStore = defineStore('family', () => {
    * @param {RelationshipType} type - тип связи
    */
   const addRelationship = (from: string, to: string, type: RelationshipType) => {
-    const key = `${from}:${to}`
+    const key = getLinkKey(from, to)
     // Защита от дублей по ключу
     if (relationships.value[key]) return
     relationships.value[key] = { id: createId(), from, to, type }

@@ -326,14 +326,7 @@ import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import Konva from 'konva'
 import type { VueKonvaRef } from 'vue-konva'
 import { storeToRefs } from 'pinia'
-import {
-  Axis,
-  CARD_SIZE,
-  Gender,
-  RelationshipType,
-  type Person,
-  type Relationship,
-} from '@/types/types'
+import { CARD_SIZE, Gender, RelationshipType, type Person, type Relationship } from '@/types/types'
 import { useFamilyStore } from '@/stores/familyStore'
 import PersonEditModal from './PersonEditModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -341,6 +334,7 @@ import { useToast } from '@/composables/useToast'
 import { exportStageToPng } from '@/utils/exportPng'
 import { downloadBlob } from '@/utils/download'
 import { deserializeGraph, serializeGraph } from '@/utils/serialization'
+import { calculateBezier, getEndAnchor, getLinkAxis, getStartAnchor } from '@/utils/graphGeometry'
 
 interface PendingLink {
   fromId: string
@@ -447,24 +441,6 @@ const handleDragMove = (e: Konva.KonvaEventObject<MouseEvent>, node: Person) => 
 }
 
 /**
- * Расчёт контрольных точек кривой Безье для связи между персонами.
- * @param {number} x1 - X начала связи
- * @param {number} y1 - Y начала связи
- * @param {number} x2 - X конца связи
- * @param {number} y2 - Y конца связи
- * @param {Axis} [axis=Axis.X] - ось изгиба кривой
- * @returns {number[]} массив `[x1, y1, cx1, cy1, cx2, cy2, x2, y2]` для Konva.Line
- */
-const calculateBezier = (x1: number, y1: number, x2: number, y2: number, axis: Axis = Axis.X) => {
-  if (axis === Axis.X) {
-    const dist = Math.abs(x2 - x1) * 0.5
-    return [x1, y1, x1 + dist, y1, x2 - dist, y2, x2, y2]
-  }
-  const dist = Math.abs(y2 - y1) * 0.5
-  return [x1, y1, x1, y1 + dist, x2, y2 - dist, x2, y2]
-}
-
-/**
  * Конфигурация Konva.Line для готовой связи: точки Безье, цвет по типу,
  * градиентная пунктирная линия для мужских blood-связей.
  * @param {Relationship} link - связь между персонами
@@ -475,18 +451,11 @@ const getLinkConfig = (link: Relationship) => {
   const to = familyStore.getPerson(link.to)
   if (!from || !to) return { points: [] }
 
+  const start = getStartAnchor(link.type, from.x, from.y)
+  const end = getEndAnchor(link.type, to.x, to.y)
+
   const result: Konva.LineConfig = {
-    points: calculateBezier(
-      link.type === RelationshipType.BLOOD
-        ? from.x + CARD_SIZE.width
-        : from.x + CARD_SIZE.width / 2,
-      link.type === RelationshipType.BLOOD
-        ? from.y + CARD_SIZE.height / 2
-        : from.y + CARD_SIZE.height,
-      link.type === RelationshipType.BLOOD ? to.x : to.x + CARD_SIZE.width / 2,
-      link.type === RelationshipType.BLOOD ? to.y + CARD_SIZE.height / 2 : to.y,
-      link.type === RelationshipType.BLOOD ? Axis.X : Axis.Y,
-    ),
+    points: calculateBezier(start.x, start.y, end.x, end.y, getLinkAxis(link.type)),
     stroke: link.type === RelationshipType.BLOOD ? '#00a6f4' : '#ff6900',
     strokeWidth: selectedRelationshipId.value === link.id ? 4 : 2,
     bezier: true,
@@ -494,14 +463,8 @@ const getLinkConfig = (link: Relationship) => {
   }
 
   if (from.gender === Gender.MALE && link.type === RelationshipType.BLOOD) {
-    result.strokeLinearGradientStartPoint = {
-      x: from.x + CARD_SIZE.width,
-      y: from.y + CARD_SIZE.height / 2,
-    }
-    result.strokeLinearGradientEndPoint = {
-      x: to.x,
-      y: to.y,
-    }
+    result.strokeLinearGradientStartPoint = { x: start.x, y: start.y }
+    result.strokeLinearGradientEndPoint = { x: end.x, y: end.y }
     result.strokeLinearGradientColorStops = [0, '#ff6900', 1, '#00a6f4']
   }
 
@@ -517,17 +480,15 @@ const getPendingLinkConfig = () => {
   const from = familyStore.getPerson(pendingLink.value!.fromId)
   if (!from) return {}
 
+  const start = getStartAnchor(pendingLink.value.type, from.x, from.y)
+
   const result: Konva.LineConfig = {
     points: calculateBezier(
-      pendingLink.value.type === RelationshipType.BLOOD
-        ? from.x + CARD_SIZE.width
-        : from.x + CARD_SIZE.width / 2,
-      pendingLink.value.type === RelationshipType.BLOOD
-        ? from.y + CARD_SIZE.height / 2
-        : from.y + CARD_SIZE.height,
+      start.x,
+      start.y,
       pendingLink.value.mouseX,
       pendingLink.value.mouseY,
-      pendingLink.value.type === RelationshipType.BLOOD ? Axis.X : Axis.Y,
+      getLinkAxis(pendingLink.value.type),
     ),
     stroke: pendingLink.value.type === RelationshipType.BLOOD ? '#00a6f4' : '#ff6900',
     strokeWidth: 2,
@@ -538,10 +499,7 @@ const getPendingLinkConfig = () => {
     lineJoin: 'round',
   }
   if (from.gender === Gender.MALE && pendingLink.value.type === RelationshipType.BLOOD) {
-    result.strokeLinearGradientStartPoint = {
-      x: from.x + CARD_SIZE.width,
-      y: from.y + CARD_SIZE.height / 2,
-    }
+    result.strokeLinearGradientStartPoint = { x: start.x, y: start.y }
     result.strokeLinearGradientEndPoint = {
       x: pendingLink.value.mouseX,
       y: pendingLink.value.mouseY,

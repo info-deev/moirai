@@ -1,5 +1,6 @@
 import { Gender, RelationshipType, type Person, type Relationship } from '@/types/types'
 import { createId } from '@/utils/id'
+import { getLinkKey } from '@/utils/graphGeometry'
 
 /**
  * Валидированные данные графа — единый формат для файла и localStorage (решение D11).
@@ -144,7 +145,7 @@ export function deserializeGraph(input: unknown): DeserializeResult {
     const relationships: Record<string, Relationship> = {}
     Object.values(relationshipsRaw).forEach((raw, index) => {
       const relationship = validateRelationship(raw, index, persons)
-      const key = `${relationship.from}:${relationship.to}`
+      const key = getLinkKey(relationship.from, relationship.to)
       if (!relationships[key]) relationships[key] = relationship
     })
 
