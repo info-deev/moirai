@@ -4,7 +4,7 @@
     <header
       class="h-10 bg-gray-800 border-b border-[#111] flex items-center px-4 gap-4 text-sm z-10"
     >
-      <div class="font-bold text-orange-400 italic">MOIRAI MVP</div>
+      <div class="font-bold text-orange-400 italic">MOIRAI</div>
       <button
         @click="addNode"
         class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1 rounded border border-gray-600 transition-all active:scale-95"
@@ -24,7 +24,7 @@
         type="file"
         accept=".json"
         style="display: none"
-        @change="importData"
+        @change="onImportFileSelected"
       />
       <button
         @click="exportData"
@@ -45,6 +45,12 @@
       >
         Очистить всё
       </button>
+      <RouterLink
+        :to="{ name: 'help' }"
+        class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1 rounded border border-gray-600 transition-all active:scale-95"
+      >
+        Справка
+      </RouterLink>
       <div class="text-gray-400 text-[10px] uppercase tracking-widest ml-auto">
         Масштаб: {{ Math.round(stageConfig.scaleX * 100) }}%
       </div>
@@ -106,7 +112,9 @@
       </div>
 
       <!-- T8.3: Подсказка по управлению (низ-право) -->
-      <div class="pointer-events-none absolute bottom-4 right-4 z-30 rounded bg-gray-800/70 px-2 py-1 text-[10px] text-gray-300">
+      <div
+        class="pointer-events-none absolute bottom-4 right-4 z-30 rounded bg-gray-800/70 px-2 py-1 text-[10px] text-gray-300"
+      >
         Колесо — зум · ЛКМ — перемещение · ПКМ — меню · Esc — отмена
       </div>
 
@@ -125,7 +133,9 @@
             :key="link.id"
             :config="getLinkConfig(link)"
             @click="selectRelationship(link.id)"
-            @contextmenu="(e: Konva.KonvaEventObject<MouseEvent>) => openLinkContextMenu(e, link.id)"
+            @contextmenu="
+              (e: Konva.KonvaEventObject<MouseEvent>) => openLinkContextMenu(e, link.id)
+            "
           />
 
           <!-- Временная связь (при перетаскивании из пина) -->
@@ -307,7 +317,6 @@
       @close="confirmDelete.visible = false"
     />
 
-
     <!-- Подтверждение очистки всех данных -->
     <ConfirmDialog
       :is-open="confirmClearAll.visible"
@@ -318,6 +327,15 @@
       @close="confirmClearAll.visible = false"
     />
 
+    <!-- Подтверждение импорта JSON: текущий граф будет заменён данными из файла -->
+    <ConfirmDialog
+      :is-open="confirmImport.visible"
+      title="Импортировать данные?"
+      message="Текущие персоны и связи будут заменены данными из файла без возможности восстановления."
+      confirm-label="Импортировать"
+      @confirm="handleConfirmImport"
+      @close="cancelImport"
+    />
   </div>
 </template>
 
@@ -333,7 +351,7 @@ import ConfirmDialog from './ConfirmDialog.vue'
 import { useToast } from '@/composables/useToast'
 import { exportStageToPng } from '@/utils/exportPng'
 import { downloadBlob } from '@/utils/download'
-import { deserializeGraph, serializeGraph } from '@/utils/serialization'
+import { deserializeGraph, serializeGraph, type GraphData } from '@/utils/serialization'
 import { calculateBezier, getEndAnchor, getLinkAxis, getStartAnchor } from '@/utils/graphGeometry'
 
 interface PendingLink {
@@ -362,7 +380,13 @@ const confirmClearAll = reactive({
   visible: false,
 })
 
+// Подтверждение импорта JSON: текущие данные будут заменены данными из файла
+const confirmImport = reactive({
+  visible: false,
+})
 
+// Валидированные данные из файла, ожидающие подтверждения импорта
+const pendingGraph = ref<GraphData | null>(null)
 
 const { success, error } = useToast()
 
@@ -646,13 +670,15 @@ const resetView = () => {
 }
 
 /**
- * Обработчик клавиатуры: Esc — отмена создания связи и закрытие меню.
+ * Обработчик клавиатуры: Esc — отмена создания связи, закрытие меню и диалогов.
  */
 const handleKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape') {
-    pendingLink.value = null
-    closeContextMenu()
-  }
+  if (e.key !== 'Escape') return
+  pendingLink.value = null
+  closeContextMenu()
+  confirmDelete.visible = false
+  confirmClearAll.visible = false
+  cancelImport()
 }
 
 onMounted(() => {
@@ -762,7 +788,6 @@ const handleConfirmClearAll = () => {
   success('Все данные очищены')
 }
 
-
 /**
  * Удаляет связь из контекстного меню + тост.
  */
@@ -828,10 +853,11 @@ const triggerFileInput = () => {
 }
 
 /**
- * Импорт графа из JSON-файла с валидацией через deserializeGraph.
+ * Обработчик выбора JSON-файла: читает и валидирует содержимое, после чего
+ * показывает диалог подтверждения — текущие данные будут заменены.
  * @param {Event} event - событие change от file input
  */
-const importData = (event: Event) => {
+const onImportFileSelected = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
 
@@ -844,8 +870,8 @@ const importData = (event: Event) => {
         error(`Импорт отклонён: ${result.error}`)
         return
       }
-      familyStore.setGraph(result.data)
-      success('Данные успешно импортированы')
+      pendingGraph.value = result.data
+      confirmImport.visible = true
     } catch (e) {
       console.error('Ошибка при чтении JSON:', e)
       error('Не удалось прочитать JSON-файл')
@@ -857,5 +883,24 @@ const importData = (event: Event) => {
   if (input.files[0]) {
     reader.readAsText(input.files[0])
   }
+}
+
+/**
+ * Подтверждённый импорт: заменяет граф данными из файла + тост.
+ */
+const handleConfirmImport = () => {
+  if (pendingGraph.value) {
+    familyStore.setGraph(pendingGraph.value)
+    success('Данные успешно импортированы')
+  }
+  cancelImport()
+}
+
+/**
+ * Отмена импорта: сброс состояния без изменения графа.
+ */
+const cancelImport = () => {
+  confirmImport.visible = false
+  pendingGraph.value = null
 }
 </script>

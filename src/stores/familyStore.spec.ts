@@ -12,9 +12,22 @@ function makePerson(id: string, overrides: Partial<Person> = {}): Person {
   return { id, x: 0, y: 0, firstName: 'Тест', lastName: '', gender: Gender.UNKNOWN, ...overrides }
 }
 
-/** Мок vue-konva stage с заданным смещением и зумом. */
-function mockStageRef(x = 0, y = 0, scale = 1) {
-  const stage = { x: () => x, y: () => y, scaleX: () => scale, scaleY: () => scale } as unknown as Konva.Stage
+/** Мок vue-konva stage с заданным смещением, зумом и размерами холста. */
+function mockStageRef(
+  x = 0,
+  y = 0,
+  scale = 1,
+  width = window.innerWidth,
+  height = window.innerHeight,
+) {
+  const stage = {
+    x: () => x,
+    y: () => y,
+    scaleX: () => scale,
+    scaleY: () => scale,
+    width: () => width,
+    height: () => height,
+  } as unknown as Konva.Stage
   return { getStage: () => stage }
 }
 
@@ -82,6 +95,17 @@ describe('familyStore', () => {
 
       expect(store.personList[0]?.x).toBe((window.innerWidth / 2 - 100) / 2 - CARD_SIZE.width / 2)
       expect(store.personList[0]?.y).toBe((window.innerHeight / 2 - 50) / 2 - CARD_SIZE.height / 2)
+    })
+
+    it('центрирует по размерам холста, а не окна (шапка редактора сдвигает canvas)', () => {
+      // Холст ниже окна на высоту шапки: центр карточки обязан считаться от stage, а не window
+      const canvasWidth = 900
+      const canvasHeight = 728 // window.innerHeight - 40
+
+      store.addPerson(mockStageRef(0, 0, 1, canvasWidth, canvasHeight))
+
+      expect(store.personList[0]?.x).toBe(canvasWidth / 2 - CARD_SIZE.width / 2)
+      expect(store.personList[0]?.y).toBe(canvasHeight / 2 - CARD_SIZE.height / 2)
     })
 
     it('сохраняет граф в localStorage', () => {
@@ -158,7 +182,10 @@ describe('familyStore', () => {
   })
   describe('removePerson', () => {
     it('каскадно удаляет связи, где персона — отправитель или получатель', () => {
-      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b'), c: makePerson('c') }, relationships: {} })
+      store.setGraph({
+        persons: { a: makePerson('a'), b: makePerson('b'), c: makePerson('c') },
+        relationships: {},
+      })
       store.addRelationship('a', 'b', RelationshipType.BLOOD)
       store.addRelationship('b', 'c', RelationshipType.ADOPTION)
       store.selectPerson('b')
@@ -171,7 +198,10 @@ describe('familyStore', () => {
     })
 
     it('не трогает связи без участия персоны и не сбрасывает чужое выделение', () => {
-      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b'), c: makePerson('c') }, relationships: {} })
+      store.setGraph({
+        persons: { a: makePerson('a'), b: makePerson('b'), c: makePerson('c') },
+        relationships: {},
+      })
       store.addRelationship('a', 'c', RelationshipType.MARRIAGE)
       store.selectPerson('a')
 
@@ -227,7 +257,10 @@ describe('familyStore', () => {
 
   describe('removeIncomingRelationships', () => {
     it('удаляет только связи, входящие в персону (to === personId)', () => {
-      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b'), c: makePerson('c') }, relationships: {} })
+      store.setGraph({
+        persons: { a: makePerson('a'), b: makePerson('b'), c: makePerson('c') },
+        relationships: {},
+      })
       store.addRelationship('a', 'b', RelationshipType.BLOOD) // входящая для b
       store.addRelationship('b', 'c', RelationshipType.ADOPTION) // исходящая из b
 
@@ -258,7 +291,10 @@ describe('familyStore', () => {
     })
 
     it('загружает сохранённый граф', () => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ persons: { a: makePerson('a') }, relationships: {} }))
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ persons: { a: makePerson('a') }, relationships: {} }),
+      )
 
       expect(store.loadFromStorage()).toBe(true)
       expect(Object.keys(store.persons)).toEqual(['a'])

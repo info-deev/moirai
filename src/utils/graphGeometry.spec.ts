@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { Axis, CARD_SIZE, RelationshipType } from '@/types/types'
-import { calculateBezier, getEndAnchor, getLinkAxis, getLinkKey, getStartAnchor } from './graphGeometry'
+import {
+  calculateBezier,
+  getEndAnchor,
+  getLinkAxis,
+  getLinkKey,
+  getStartAnchor,
+} from './graphGeometry'
 
 describe('getLinkKey', () => {
   it('собирает ключ записи связи в формате `${from}:${to}`', () => {

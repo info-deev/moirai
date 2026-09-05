@@ -10,9 +10,7 @@ export interface GraphData {
   relationships: Record<string, Relationship>
 }
 
-export type DeserializeResult =
-  | { ok: true; data: GraphData }
-  | { ok: false; error: string }
+export type DeserializeResult = { ok: true; data: GraphData } | { ok: false; error: string }
 
 const GENDERS = Object.values(Gender) as string[]
 const RELATIONSHIP_TYPES = Object.values(RelationshipType) as string[]
@@ -167,4 +165,3 @@ export function serializeGraph(
 ): string {
   return JSON.stringify({ persons, relationships }, null, 2)
 }
-

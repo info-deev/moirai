@@ -6,6 +6,7 @@ import { CARD_SIZE, Gender, RelationshipType, type Person, type Relationship } f
 import { createId } from '@/utils/id'
 import { getLinkKey } from '@/utils/graphGeometry'
 import { deserializeGraph, serializeGraph, type GraphData } from '@/utils/serialization'
+import { useToast } from '@/composables/useToast'
 
 /**
  * Оборачивает функцию в дебаунс с задержкой.
@@ -28,8 +29,8 @@ function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
 const STORAGE_KEY = 'moirai:graph:v1'
 
 /**
- * Сохраняет граф в localStorage. Ошибки квоты/доступа молча игнорируются,
- * чтобы локальное сохранение не ломало основную работу редактора.
+ * Сохраняет граф в localStorage. Ошибки квоты/доступа не ломают работу редактора:
+ * пользователь получает тост с предупреждением, данные продолжают жить в памяти.
  */
 function persistGraph(
   persons: Record<string, Person>,
@@ -39,6 +40,7 @@ function persistGraph(
     localStorage.setItem(STORAGE_KEY, serializeGraph(persons, relationships))
   } catch (e) {
     console.warn('Не удалось сохранить граф в localStorage:', e)
+    useToast().error('Не удалось сохранить данные в localStorage')
   }
 }
 
@@ -109,15 +111,16 @@ export const useFamilyStore = defineStore('family', () => {
   }, 300)
 
   /**
-   * Создаёт новую персону по центру видимой области с учётом зума и смещения stage.
+   * Создаёт новую персону по центру видимой области сцены (размеры холста,
+   * а не окна — под шапкой редактора) с учётом зума и смещения stage.
    * @param {{ getStage(): Konva.Stage }} stageRef - ссылка на vue-konva stage
    */
   const addPerson = (stageRef: { getStage(): Konva.Stage }) => {
     const id = createId()
     const stage = stageRef.getStage()
-    // Вычисляем центр экрана с учетом текущего зума и смещения
-    const x = (window.innerWidth / 2 - stage.x()) / stage.scaleX()
-    const y = (window.innerHeight / 2 - stage.y()) / stage.scaleY()
+    // Вычисляем центр холста с учетом текущего зума и смещения
+    const x = (stage.width() / 2 - stage.x()) / stage.scaleX()
+    const y = (stage.height() / 2 - stage.y()) / stage.scaleY()
     persons.value[id] = {
       id,
       x: x - CARD_SIZE.width / 2,

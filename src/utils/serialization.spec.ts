@@ -91,7 +91,10 @@ describe('deserializeGraph', () => {
 
   it('принимает значения как массивы пар [key, value] (legacy-экспорт)', () => {
     const result = deserializeGraph({
-      persons: [['p1', makePerson()], ['p2', makePerson({ id: 'p2' })]],
+      persons: [
+        ['p1', makePerson()],
+        ['p2', makePerson({ id: 'p2' })],
+      ],
       relationships: [['r1', makeRelationship()]],
     })
 

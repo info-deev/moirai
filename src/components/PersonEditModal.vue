@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, reactive } from 'vue'
+import { watch, reactive, onBeforeUnmount, onMounted } from 'vue'
 import { Gender, type Person } from '@/types/types'
 
 interface Props {
@@ -12,6 +12,14 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'save', updatedPerson: Person): void
 }>()
+
+/** Esc закрывает модалку, пока она открыта. */
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && props.isOpen) emit('close')
+}
+
+onMounted(() => window.addEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 
 // Локальное реактивное состояние формы (клонируем данные, чтобы не менять оригинал до сохранения)
 const form = reactive<Person>({
@@ -54,9 +62,14 @@ const handleSave = () => {
         <!-- Modal Content -->
         <div
           class="relative w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden transform transition-all"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="person-edit-title"
         >
           <div class="p-6">
-            <h3 class="text-xl font-bold text-gray-900 mb-4">Редактировать профиль</h3>
+            <h3 id="person-edit-title" class="text-xl font-bold text-gray-900 mb-4">
+              Редактировать профиль
+            </h3>
 
             <form @submit.prevent="handleSave" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">

@@ -26,7 +26,10 @@ export function exportStageToPng(stage: Konva.Stage): Promise<void> {
         logoSvgUrl,
         (logo) => {
           try {
-            logo.width(50).height(50).position({ x: box.x + 10, y: box.y + box.height - 60 })
+            logo
+              .width(50)
+              .height(50)
+              .position({ x: box.x + 10, y: box.y + box.height - 60 })
 
             const background = new Konva.Rect({
               x: box.x,

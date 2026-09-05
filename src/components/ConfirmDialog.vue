@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 
 interface Props {
   isOpen: boolean
@@ -17,6 +17,14 @@ const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'close'): void
 }>()
+
+/** Esc закрывает диалог, пока он открыт. */
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') emit('close')
+}
+
+onMounted(() => window.addEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 </script>
 
 <template>
@@ -27,7 +35,12 @@ const emit = defineEmits<{
         <div class="absolute inset-0 bg-black/50" @click="emit('close')"></div>
 
         <!-- Modal Content -->
-        <div class="relative w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
+        <div
+          class="relative w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="title"
+        >
           <h3 class="mb-2 text-lg font-bold text-gray-900">{{ title }}</h3>
           <p class="mb-6 text-sm text-gray-600">{{ message }}</p>
 
