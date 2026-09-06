@@ -103,6 +103,18 @@
         </button>
       </div>
 
+      <!-- Поиск по имени (case-insensitive): подсвечивает совпавшие карточки и
+           приглушает остальные; Esc сбрасывает запрос (см. handleKeydown). -->
+      <input
+        v-model="searchQuery"
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        placeholder="Поиск…"
+        aria-label="Поиск персоны по имени"
+        class="h-7 w-44 rounded border border-[#E4E4E7] bg-white px-2.5 text-xs text-[#18181B] placeholder:text-[#A1A1AA] transition-colors focus:border-[#4F46E5] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/20"
+      />
+
       <RouterLink
         :to="{ name: 'help' }"
         class="ml-auto rounded px-2.5 py-1 text-xs bg-white hover:bg-[#F4F4F5] transition-colors"
@@ -250,6 +262,7 @@
               x: node.x,
               y: node.y,
               draggable: true,
+              opacity: getCardOpacity(node),
               ondragmove: (e: Konva.KonvaEventObject<MouseEvent>) => handleDragMove(e, node),
               ondragend: (e: Konva.KonvaEventObject<MouseEvent>) =>
                 familyStore.debouncedUpdatePosition(node.id, e.target.x(), e.target.y()),
@@ -266,8 +279,7 @@
                 height: CARD_SIZE.height,
                 fill: '#ffffff',
                 cornerRadius: 8,
-                stroke: selectedPersonId === node.id ? '#4F46E5' : '#E4E4E7',
-                strokeWidth: selectedPersonId === node.id ? 2 : 1,
+                ...getCardStroke(node),
                 shadowBlur: 16,
                 shadowOpacity: 0.09,
               }"
@@ -645,6 +657,56 @@ const getTitleBackgroundColor = (node: Person) => {
   return '#6B7280'
 }
 
+// --- Поиск по имени (case-insensitive) ---
+const searchQuery = ref('')
+
+/** Нормализованный поисковый запрос: trim + lower-case. */
+const normalizedQuery = computed(() => searchQuery.value.trim().toLowerCase())
+
+/** Активен ли поиск (запрос не пустой после нормализации). */
+const isSearchActive = computed(() => normalizedQuery.value.length > 0)
+
+/**
+ * Набор id персон, чьё «имя фамилия» содержит запрос (без учёта регистра).
+ * Пустой набор — запрос не активен или совпадений нет.
+ */
+const matchedPersonIds = computed<Set<string>>(() => {
+  const query = normalizedQuery.value
+  if (!query) return new Set<string>()
+  const ids = new Set<string>()
+  for (const person of personList.value) {
+    const fullName = `${person.firstName} ${person.lastName}`.trim().toLowerCase()
+    if (fullName.includes(query)) {
+      ids.add(person.id)
+    }
+  }
+  return ids
+})
+
+// Прозрачность карточки, не совпавшей с активным поиском
+const DIMMED_CARD_OPACITY = 0.35
+
+/**
+ * Прозрачность карточки персоны при активном поиске: совпавшая — полностью,
+ * остальные — приглушённые. Без поиска всегда 1.
+ */
+const getCardOpacity = (node: Person): number => {
+  if (!isSearchActive.value) return 1
+  return matchedPersonIds.value.has(node.id) ? 1 : DIMMED_CARD_OPACITY
+}
+
+/**
+ * Обводка карточки персоны: выбранная или совпавшая с поиском — индиго,
+ * остальные — нейтральный серый.
+ */
+const getCardStroke = (node: Person) => {
+  const isSelected = selectedPersonId.value === node.id
+  if (isSelected || matchedPersonIds.value.has(node.id)) {
+    return { stroke: '#4F46E5', strokeWidth: 2 }
+  }
+  return { stroke: '#E4E4E7', strokeWidth: 1 }
+}
+
 // --- Функции ---
 
 /**
@@ -877,7 +939,8 @@ const resetView = () => {
 }
 
 /**
- * Обработчик клавиатуры: Esc — отмена создания связи, закрытие меню и диалогов.
+ * Обработчик клавиатуры: Esc — отмена создания связи, закрытие меню и диалогов,
+ * сброс поискового запроса.
  */
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key !== 'Escape') return
@@ -887,6 +950,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   confirmDelete.visible = false
   confirmClearAll.visible = false
   cancelImport()
+  searchQuery.value = ''
 }
 
 /**
