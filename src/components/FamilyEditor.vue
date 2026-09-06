@@ -164,9 +164,9 @@
               y1="3"
               x2="25"
               y2="3"
-              stroke="#F59E0B"
+              stroke="#64748B"
               stroke-width="1.5"
-              stroke-dasharray="4 3"
+              stroke-dasharray="5 5"
             />
           </svg>
           Усыновление
@@ -406,6 +406,12 @@
         </template>
         <template v-if="menuState.linkId">
           <button
+            @click="changeLinkType"
+            class="w-full text-left px-3 py-1.5 hover:bg-[#F4F4F5]"
+          >
+            {{ menuLink?.type === RelationshipType.ADOPTION ? 'Сделать кровной' : 'Сделать усыновлением' }}
+          </button>
+          <button
             @click="deleteLink"
             class="w-full text-left px-3 py-1.5 text-red-600 transition-colors hover:bg-red-50"
           >
@@ -464,7 +470,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import Konva from 'konva'
 import type { VueKonvaRef } from 'vue-konva'
 import { storeToRefs } from 'pinia'
@@ -602,16 +608,16 @@ const getTitleBackgroundColor = (node: Person) => {
 // --- Функции ---
 
 /**
- * Цвет линии связи по её типу (Concept A): кровная — серо-синяя, брак — фиолетовая, усыновление — янтарная.
+ * Цвет линии связи по её типу (Concept A): кровная и усыновление — серо-синие,
+ * брак — фиолетовая. Усыновление отличается от кровной пунктиром (dash).
  * @param {RelationshipType} type - тип связи
  * @returns {string} hex-цвет обводки
  */
 const getLinkStrokeColor = (type: RelationshipType) => {
   switch (type) {
     case RelationshipType.BLOOD:
-      return '#64748B'
     case RelationshipType.ADOPTION:
-      return '#F59E0B'
+      return '#64748B'
     default:
       return '#8B5CF6'
   }
@@ -995,6 +1001,26 @@ const handleConfirmClearAll = () => {
   closeContextMenu()
   confirmClearAll.visible = false
   success('Все данные очищены')
+}
+
+/**
+ * Связь, открытая в контекстном меню (для переключения типа Blood ↔ Adoption).
+ */
+const menuLink = computed(() =>
+  relationshipList.value.find((link) => link.id === menuState.linkId) ?? null,
+)
+
+/**
+ * Переключает тип связи из контекстного меню: кровная ↔ усыновление.
+ */
+const changeLinkType = () => {
+  if (!menuLink.value) return
+  const nextType =
+    menuLink.value.type === RelationshipType.ADOPTION
+      ? RelationshipType.BLOOD
+      : RelationshipType.ADOPTION
+  familyStore.changeRelationshipType(menuLink.value.id, nextType)
+  closeContextMenu()
 }
 
 /**

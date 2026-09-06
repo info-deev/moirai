@@ -255,6 +255,29 @@ describe('familyStore', () => {
     })
   })
 
+  describe('changeRelationshipType', () => {
+    it('меняет тип связи по id и сохраняет граф', () => {
+      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b') }, relationships: {} })
+      store.addRelationship('a', 'b', RelationshipType.BLOOD)
+      const id = store.relationshipList[0]?.id ?? ''
+
+      store.changeRelationshipType(id, RelationshipType.ADOPTION)
+
+      expect(store.relationshipList[0]?.type).toBe(RelationshipType.ADOPTION)
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+        relationships: { 'a:b': { type: RelationshipType.ADOPTION } },
+      })
+    })
+
+    it('игнорирует несуществующий id', () => {
+      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b') }, relationships: {} })
+      store.addRelationship('a', 'b', RelationshipType.BLOOD)
+
+      expect(() => store.changeRelationshipType('ghost', RelationshipType.ADOPTION)).not.toThrow()
+      expect(store.relationshipList[0]?.type).toBe(RelationshipType.BLOOD)
+    })
+  })
+
   describe('removeIncomingRelationships', () => {
     it('удаляет только связи, входящие в персону (to === personId)', () => {
       store.setGraph({

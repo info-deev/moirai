@@ -235,6 +235,20 @@ export const useFamilyStore = defineStore('family', () => {
   }
 
   /**
+   * Меняет тип связи по её id (переключение «кровная» ↔ «усыновление»).
+   * @param {string} id - идентификатор связи
+   * @param {RelationshipType} type - новый тип связи
+   */
+  const changeRelationshipType = (id: string, type: RelationshipType) => {
+    for (const relationship of Object.values(relationships.value)) {
+      if (relationship.id === id) {
+        relationship.type = type
+      }
+    }
+    persistGraph(persons.value, relationships.value)
+  }
+
+  /**
    * Заменяет весь граф валидированными данными (импорт из JSON-файла).
    * @param {GraphData} data - валидированные данные графа
    */
@@ -322,6 +336,7 @@ export const useFamilyStore = defineStore('family', () => {
     removePerson,
     addRelationship,
     removeRelationship,
+    changeRelationshipType,
     removeIncomingRelationships,
     setGraph,
     loadFromStorage,
