@@ -29,6 +29,8 @@
       <div ref="fileMenuRef" class="relative">
         <button
           @click="fileMenuOpen = !fileMenuOpen"
+          aria-haspopup="menu"
+          :aria-expanded="fileMenuOpen"
           :class="[
             'flex items-center gap-1 rounded px-2.5 py-1 text-xs transition-colors border',
             fileMenuOpen
@@ -49,21 +51,25 @@
         </button>
         <div
           v-if="fileMenuOpen"
+          role="menu"
           class="absolute left-0 top-full mt-1 w-48 rounded-lg border border-[#E4E4E7] bg-white py-1 shadow-xl z-50"
         >
           <button
+            role="menuitem"
             @click="onFileMenuItem('import')"
             class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
           >
             Импорт JSON…
           </button>
           <button
+            role="menuitem"
             @click="onFileMenuItem('export-json')"
             class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
           >
             Экспорт в JSON
           </button>
           <button
+            role="menuitem"
             @click="onFileMenuItem('export-png')"
             class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
           >
@@ -71,6 +77,7 @@
           </button>
           <div class="my-1 border-t border-[#E4E4E7]" />
           <button
+            role="menuitem"
             @click="onFileMenuItem('clear')"
             :disabled="personList.length === 0"
             class="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:pointer-events-none disabled:opacity-40"
@@ -601,9 +608,12 @@ const MIN_ZOOM = 0.25
 const MAX_ZOOM = 4
 const ZOOM_STEP = 1.2
 
+// Высота шапки редактора (header h-10) — вычитается из viewport при расчёте высоты холста
+const HEADER_HEIGHT = 40
+
 const stageConfig = reactive({
   width: window.innerWidth,
-  height: window.innerHeight - 40,
+  height: window.innerHeight - HEADER_HEIGHT,
   draggable: true,
   scaleX: 1,
   scaleY: 1,
@@ -806,7 +816,7 @@ const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
 const clampZoom = (scale: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scale))
 
 /**
- * Зум сцены колёсиком мыши вокруг курсора (коэффициент ×/÷ 1.1, границы MIN/MAX_ZOOM).
+ * Зум сцены колёсиком мыши вокруг курсора (коэффициент ×/÷ ZOOM_STEP, границы MIN/MAX_ZOOM).
  * @param {Konva.KonvaEventObject<WheelEvent>} e - событие прокрутки колеса
  */
 const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -872,24 +882,38 @@ const resetView = () => {
 const handleKeydown = (e: KeyboardEvent) => {
   if (e.key !== 'Escape') return
   pendingLink.value = null
+  fileMenuOpen.value = false
   closeContextMenu()
   confirmDelete.visible = false
   confirmClearAll.visible = false
   cancelImport()
 }
 
+/**
+ * Подгонка размеров холста под окно: ширина = viewport, высота = viewport − шапка.
+ */
+const handleResize = () => {
+  stageConfig.width = window.innerWidth
+  stageConfig.height = window.innerHeight - HEADER_HEIGHT
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
-  const onResize = () => {
-    stageConfig.width = window.innerWidth
-    stageConfig.height = window.innerHeight - 40
+  window.addEventListener('resize', handleResize)
+
+  // vue-konva не проставляет ARIA-атрибуты на контейнер <canvas> —
+  // добавляем их вручную, чтобы скринридеры понимали назначение холста
+  const stage = getStage()
+  if (stage) {
+    const container = stage.container()
+    container.setAttribute('role', 'application')
+    container.setAttribute('aria-label', 'Редактор родословного дерева')
   }
-  window.addEventListener('resize', onResize)
-  onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('resize', handleResize)
 })
 
 /**
@@ -1161,6 +1185,12 @@ const onImportFileSelected = (event: Event) => {
       // Сбрасываем value, чтобы повторный выбор того же файла снова вызывал change
       input.value = ''
     }
+  }
+  reader.onerror = () => {
+    console.error('Ошибка чтения файла:', reader.error)
+    error('Не удалось прочитать файл')
+    // Сбрасываем value, чтобы повторный выбор того же файла снова вызывал change
+    input.value = ''
   }
   if (input.files[0]) {
     reader.readAsText(input.files[0])
