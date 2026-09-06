@@ -2,21 +2,105 @@
   <div class="w-screen h-screen bg-white overflow-hidden flex flex-col font-sans select-none">
     <!-- Header UI -->
     <header
-      class="h-10 bg-gray-800 border-b border-[#111] flex items-center px-4 gap-4 text-sm z-10"
+      class="h-10 bg-white border-b border-[#E4E4E7] flex items-center px-3 gap-1 text-sm z-10"
     >
-      <div class="font-bold text-orange-400 italic">MOIRAI</div>
+      <div class="font-bold tracking-[.16em] text-[#18181B] mr-2 text-[13px] select-none">
+        MOIRAI
+      </div>
+
       <button
         @click="addNode"
-        class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1 rounded border border-gray-600 transition-all active:scale-95"
+        class="flex items-center gap-1 rounded bg-[#4F46E5] px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-[#4338CA]"
       >
+        <svg
+          class="w-3 h-3"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
         Добавить
       </button>
-      <button
-        @click="triggerFileInput"
-        class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1 rounded border border-gray-600 transition-all active:scale-95"
+
+      <!-- Dropdown «Файл»: импорт/экспорт, очистка -->
+      <div class="relative">
+        <button
+          @click="fileMenuOpen = !fileMenuOpen"
+          :class="[
+            'flex items-center gap-1 rounded px-2.5 py-1 text-xs transition-colors border',
+            fileMenuOpen
+              ? 'bg-[#F4F4F5] border-[#E4E4E7]'
+              : 'bg-white hover:bg-[#F4F4F5] border-transparent',
+          ]"
+        >
+          Файл
+          <svg
+            class="w-3 h-3 text-[#71717A]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        <div
+          v-if="fileMenuOpen"
+          class="absolute left-0 top-full mt-1 w-48 rounded-lg border border-[#E4E4E7] bg-white py-1 shadow-xl z-50"
+        >
+          <button
+            @click="onFileMenuItem('import')"
+            class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
+          >
+            Импорт JSON…
+          </button>
+          <button
+            @click="onFileMenuItem('export-json')"
+            class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
+          >
+            Экспорт в JSON
+          </button>
+          <button
+            @click="onFileMenuItem('export-png')"
+            class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
+          >
+            Экспорт в PNG
+          </button>
+          <div class="my-1 border-t border-[#E4E4E7]" />
+          <button
+            @click="onFileMenuItem('clear')"
+            :disabled="personList.length === 0"
+            class="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:pointer-events-none disabled:opacity-40"
+          >
+            Очистить всё
+          </button>
+        </div>
+      </div>
+
+      <!-- Переключатель UI: легенда связей (Concept A) -->
+      <div class="flex items-center gap-1">
+        <button
+          @click="toggleLegend"
+          :class="[
+            'rounded px-2 py-1 text-xs transition-colors border',
+            showLegend
+              ? 'bg-[#EEF2FF] text-[#4F46E5] border-[#C7D2FE]'
+              : 'bg-white text-[#71717A] border-transparent hover:bg-[#F4F4F5]',
+          ]"
+          title="Легенда связей (показать/скрыть)"
+        >
+          Легенда
+        </button>
+      </div>
+
+      <RouterLink
+        :to="{ name: 'help' }"
+        class="rounded px-2.5 py-1 text-xs border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] transition-colors"
       >
-        Импорт из JSON
-      </button>
+        Справка
+      </RouterLink>
 
       <!-- Скрытый input -->
       <input
@@ -26,34 +110,6 @@
         style="display: none"
         @change="onImportFileSelected"
       />
-      <button
-        @click="exportData"
-        class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1 rounded border border-gray-600 transition-all active:scale-95"
-      >
-        Экспорт в JSON
-      </button>
-      <button
-        @click="handleExportPNG"
-        class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1 rounded border border-gray-600 transition-all active:scale-95"
-      >
-        Экспорт в PNG
-      </button>
-      <button
-        @click="openClearAllDialog"
-        :disabled="personList.length === 0"
-        class="bg-transparent text-red-400 px-3 py-1 rounded border border-red-800/60 transition-all hover:bg-red-900/30 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
-      >
-        Очистить всё
-      </button>
-      <RouterLink
-        :to="{ name: 'help' }"
-        class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1 rounded border border-gray-600 transition-all active:scale-95"
-      >
-        Справка
-      </RouterLink>
-      <div class="text-gray-400 text-[10px] uppercase tracking-widest ml-auto">
-        Масштаб: {{ Math.round(stageConfig.scaleX * 100) }}%
-      </div>
     </header>
 
     <div class="grow relative">
@@ -70,13 +126,13 @@
           <div class="mt-2 flex gap-3">
             <button
               @click="addNode"
-              class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 active:scale-95"
+              class="rounded bg-[#4F46E5] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#4338CA] active:scale-95"
             >
               Добавить персону
             </button>
             <button
               @click="triggerFileInput"
-              class="rounded border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 active:scale-95"
+              class="rounded border border-[#E4E4E7] bg-white px-4 py-2 text-sm font-medium text-[#18181B] transition-colors hover:bg-[#F4F4F5] active:scale-95"
             >
               Импорт JSON
             </button>
@@ -84,27 +140,60 @@
         </div>
       </div>
 
+      <!-- Легенда связей (Concept A): видимость — showLegend из store -->
+      <div
+        v-if="showLegend"
+        class="absolute top-3 right-3 z-30 flex flex-col gap-1.5 rounded-lg border border-[#E4E4E7] bg-white/90 px-3 py-2 text-[10px] text-[#18181B] shadow-md backdrop-blur"
+      >
+        <div class="flex items-center gap-2">
+          <svg width="26" height="6" viewBox="0 0 26 6">
+            <line x1="1" y1="3" x2="25" y2="3" stroke="#64748B" stroke-width="1.5" />
+          </svg>
+          Кровная
+        </div>
+        <div class="flex items-center gap-2">
+          <svg width="26" height="6" viewBox="0 0 26 6">
+            <line x1="1" y1="3" x2="25" y2="3" stroke="#8B5CF6" stroke-width="1.5" />
+          </svg>
+          Брак
+        </div>
+        <div class="flex items-center gap-2">
+          <svg width="26" height="6" viewBox="0 0 26 6">
+            <line
+              x1="1"
+              y1="3"
+              x2="25"
+              y2="3"
+              stroke="#F59E0B"
+              stroke-width="1.5"
+              stroke-dasharray="4 3"
+            />
+          </svg>
+          Усыновление
+        </div>
+      </div>
+
       <!-- T8.4: Панель зума (низ-центр) -->
       <div
-        class="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-gray-800/90 px-2 py-1 text-sm text-gray-200 shadow-lg"
+        class="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-[#E4E4E7] bg-white/95 px-2 py-1 text-sm text-[#18181B] shadow-md backdrop-blur"
       >
         <button
           @click="zoomBy(1 / 1.2)"
-          class="px-2 py-0.5 hover:bg-gray-700 rounded transition-colors"
+          class="rounded px-2 py-0.5 transition-colors hover:bg-[#F4F4F5]"
           title="Отдалить (−)"
         >
           −
         </button>
         <button
           @click="resetView"
-          class="min-w-[64px] px-1 text-center text-xs tabular-nums hover:bg-gray-700 rounded transition-colors"
+          class="min-w-[64px] rounded px-1 text-center text-xs tabular-nums transition-colors hover:bg-[#F4F4F5]"
           title="Сбросить вид (100%)"
         >
           {{ Math.round(stageConfig.scaleX * 100) }}%
         </button>
         <button
           @click="zoomBy(1.2)"
-          class="px-2 py-0.5 hover:bg-gray-700 rounded transition-colors"
+          class="rounded px-2 py-0.5 transition-colors hover:bg-[#F4F4F5]"
           title="Приблизить (+)"
         >
           +
@@ -113,18 +202,22 @@
 
       <!-- T8.3: Подсказка по управлению (низ-право) -->
       <div
-        class="pointer-events-none absolute bottom-4 right-4 z-30 rounded bg-gray-800/70 px-2 py-1 text-[10px] text-gray-300"
+        class="pointer-events-none absolute bottom-4 right-4 z-30 rounded border border-[#E4E4E7] bg-white/90 px-2 py-1 text-[10px] text-[#71717A]"
       >
         Колесо — зум · ЛКМ — перемещение · ПКМ — меню · Esc — отмена
       </div>
 
       <v-stage
         ref="stageRef"
-        :config="stageConfig"
+        :config="{
+          ...stageConfig,
+          containerStyle: 'background: #F4F5F7',
+        }"
         @wheel="handleWheel"
         @mousemove="handleStageMouseMove"
         @mouseup="handleStageMouseUp"
         @click="handleStageClick"
+        @contextmenu="openCanvasContextMenu"
       >
         <v-layer>
           <!-- Постоянные связи -->
@@ -164,11 +257,11 @@
                 width: CARD_SIZE.width,
                 height: CARD_SIZE.height,
                 fill: '#ffffff',
-                cornerRadius: 6,
-                stroke: selectedPersonId === node.id ? '#2563eb' : '#6a7282',
-                strokeWidth: selectedPersonId === node.id ? 2 : 0,
-                shadowBlur: 10,
-                shadowOpacity: 0.3,
+                cornerRadius: 8,
+                stroke: selectedPersonId === node.id ? '#4F46E5' : '#E4E4E7',
+                strokeWidth: selectedPersonId === node.id ? 2 : 1,
+                shadowBlur: 16,
+                shadowOpacity: 0.09,
               }"
             />
 
@@ -178,7 +271,7 @@
                 width: CARD_SIZE.width,
                 height: 24,
                 fill: getTitleBackgroundColor(node),
-                cornerRadius: [6, 6, 0, 0],
+                cornerRadius: [8, 8, 0, 0],
               }"
             />
 
@@ -200,90 +293,113 @@
                 y: 20, // Смещение вниз от заголовка
                 width: CARD_SIZE.width,
                 // align: 'center',
-                fill: '#6a7282', // Серый цвет как в Blender
+                fill: '#71717A',
                 fontSize: 10,
                 padding: 8,
                 listening: false,
               }"
             />
-            <template v-if="hoveredNodeId === node.id">
-              <!-- Входной пин (Input) -->
+            <!-- Пины в стиле BaklavaJS: всегда видимы; при hover/выделении — увеличиваются с белым halo -->
+            <template v-if="hoveredNodeId === node.id || selectedPersonId === node.id">
+              <!-- Halo входного пина (Input) -->
               <v-circle
                 :config="{
                   x: 0,
                   y: CARD_SIZE.height / 2,
-                  radius: 6,
-                  fill: 'transparent',
-                  stroke: '#00a6f4',
-                  strokeWidth: 1.5,
-                  onmouseup: () => finishLinking(node.id),
+                  radius: 9,
+                  fill: 'rgba(255, 255, 255, .9)',
+                  listening: false,
                 }"
-                @click="handlePinClick(node)"
               />
-
-              <!-- Входной пин (Input) ♀ -->
+              <!-- Halo входного пина (Input) ♀ -->
               <v-circle
                 :config="{
                   x: CARD_SIZE.width / 2,
                   y: 0,
-                  radius: 6,
-                  fill: 'transparent',
-                  stroke: '#ff6900',
-                  strokeWidth: 1.5,
-                  onmouseup: () => finishLinking(node.id, RelationshipType.MARRIAGE),
-                }"
-                @click="handlePinClick(node)"
-              />
-
-              <!-- Выходной пин (Output) -->
-              <v-circle
-                :config="{
-                  x: CARD_SIZE.width,
-                  y: CARD_SIZE.height / 2,
-                  radius: 6,
-                  fill: node.gender === Gender.MALE ? '#6a7282' : '#00a6f4',
-                  stroke: node.gender === Gender.MALE ? '#6a7282' : '#00a6f4',
-                  strokeWidth: 1,
-                  onmousedown: (e: any) => startLinking(e, node.id),
-                }"
-              />
-              <!-- Выходной пин (Output) ♂ -->
-              <v-circle
-                :config="{
-                  x: CARD_SIZE.width / 2,
-                  y: CARD_SIZE.height,
-                  radius: 6,
-                  fill: '#ff6900',
-                  stroke: '#ff6900',
-                  strokeWidth: 1,
-                  onmousedown: (e: any) => startLinking(e, node.id, RelationshipType.MARRIAGE),
+                  radius: 9,
+                  fill: 'rgba(255, 255, 255, .9)',
+                  listening: false,
                 }"
               />
             </template>
+
+            <!-- Входной пин (Input): приём связи «кровная» -->
+            <v-circle
+              :config="{
+                x: 0,
+                y: CARD_SIZE.height / 2,
+                radius: hoveredNodeId === node.id || selectedPersonId === node.id ? 6 : 4,
+                fill: '#ffffff',
+                stroke: '#4F46E5',
+                strokeWidth: 1.5,
+                onmouseup: () => finishLinking(node.id),
+              }"
+              @click="handlePinClick(node)"
+            />
+
+            <!-- Входной пин (Input) ♀: приём связи «брак» -->
+            <v-circle
+              :config="{
+                x: CARD_SIZE.width / 2,
+                y: 0,
+                radius: hoveredNodeId === node.id || selectedPersonId === node.id ? 6 : 4,
+                fill: '#ffffff',
+                stroke: '#8B5CF6',
+                strokeWidth: 1.5,
+                onmouseup: () => finishLinking(node.id, RelationshipType.MARRIAGE),
+              }"
+              @click="handlePinClick(node)"
+            />
+
+            <!-- Выходной пин (Output): создание связи «кровная» -->
+            <v-circle
+              :config="{
+                x: CARD_SIZE.width,
+                y: CARD_SIZE.height / 2,
+                radius: hoveredNodeId === node.id || selectedPersonId === node.id ? 6 : 4,
+                fill: getTitleBackgroundColor(node),
+                stroke: '#ffffff',
+                strokeWidth: 1.5,
+                onmousedown: (e: any) => startLinking(e, node.id),
+              }"
+            />
+
+            <!-- Выходной пин (Output) ♂: создание связи «брак» -->
+            <v-circle
+              :config="{
+                x: CARD_SIZE.width / 2,
+                y: CARD_SIZE.height,
+                radius: hoveredNodeId === node.id || selectedPersonId === node.id ? 6 : 4,
+                fill: '#8B5CF6',
+                stroke: '#ffffff',
+                strokeWidth: 1.5,
+                onmousedown: (e: any) => startLinking(e, node.id, RelationshipType.MARRIAGE),
+              }"
+            />
           </v-group>
         </v-layer>
       </v-stage>
-      <!-- Context Menu -->
+      <!-- Context Menu (Concept A: светлая тема) -->
       <div
         v-if="menuState.visible"
-        class="fixed z-50 bg-gray-800 rounded-lg shadow-xl py-2 w-48 text-sm text-gray-100"
+        class="fixed z-50 w-48 rounded-lg border border-[#E4E4E7] bg-white py-1 text-sm text-[#18181B] shadow-xl"
         :style="{ left: menuState.x + 'px', top: menuState.y + 'px' }"
       >
         <div
-          class="px-3 py-1.5 text-xs text-gray-500 uppercase font-bold border-b border-gray-600 mb-1"
+          class="mb-1 border-b border-[#E4E4E7] px-3 py-1.5 text-xs font-bold uppercase text-[#71717A]"
         >
           Варианты
         </div>
         <template v-if="menuState.nodeId">
           <button
             @click="isOpenPersonEditModal = true"
-            class="w-full text-left px-3 py-1.5 hover:bg-gray-700"
+            class="w-full text-left px-3 py-1.5 hover:bg-[#F4F4F5]"
           >
             Изменить
           </button>
           <button
             @click="deleteNode"
-            class="w-full text-left px-3 py-1.5 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+            class="w-full text-left px-3 py-1.5 text-red-600 transition-colors hover:bg-red-50"
           >
             Удалить персону
           </button>
@@ -291,12 +407,20 @@
         <template v-if="menuState.linkId">
           <button
             @click="deleteLink"
-            class="w-full text-left px-3 py-1.5 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+            class="w-full text-left px-3 py-1.5 text-red-600 transition-colors hover:bg-red-50"
           >
             Удалить связь
           </button>
         </template>
-        <button @click="closeContextMenu" class="w-full text-left px-3 py-1.5 hover:bg-gray-700">
+        <template v-if="menuState.worldPos">
+          <button
+            @click="addPersonAt(menuState.worldPos!)"
+            class="w-full text-left px-3 py-1.5 hover:bg-[#F4F4F5]"
+          >
+            Добавить персону здесь
+          </button>
+        </template>
+        <button @click="closeContextMenu" class="w-full text-left px-3 py-1.5 hover:bg-[#F4F4F5]">
           Отмена
         </button>
       </div>
@@ -367,6 +491,8 @@ const menuState = reactive({
   y: 0,
   nodeId: null as string | null,
   linkId: null as string | null,
+  // Мировые координаты для «Добавить персону здесь» (ПКМ по пустому холсту)
+  worldPos: null as { x: number; y: number } | null,
 })
 
 // T8.2: состояние подтверждения удаления персоны
@@ -388,6 +514,33 @@ const confirmImport = reactive({
 // Валидированные данные из файла, ожидающие подтверждения импорта
 const pendingGraph = ref<GraphData | null>(null)
 
+/**
+ * Открыто ли выпадающее меню «Файл» в шапке редактора.
+ */
+const fileMenuOpen = ref(false)
+
+/**
+ * Выбор пункта меню «Файл»: закрывает меню и выполняет действие.
+ * @param {'import' | 'export-json' | 'export-png' | 'clear'} action - ключ действия
+ */
+const onFileMenuItem = (action: 'import' | 'export-json' | 'export-png' | 'clear') => {
+  fileMenuOpen.value = false
+  switch (action) {
+    case 'import':
+      triggerFileInput()
+      break
+    case 'export-json':
+      exportData()
+      break
+    case 'export-png':
+      handleExportPNG()
+      break
+    case 'clear':
+      openClearAllDialog()
+      break
+  }
+}
+
 const { success, error } = useToast()
 
 // --- Состояние ---
@@ -403,8 +556,9 @@ const {
   relationshipList,
   selectedPersonId,
   selectedRelationshipId,
+  showLegend,
 } = storeToRefs(familyStore)
-const { selectPerson, selectRelationship } = familyStore
+const { selectPerson, selectRelationship, toggleLegend } = familyStore
 
 // T8.4: границы зума и шаг кнопок панели
 const MIN_ZOOM = 0.25
@@ -431,21 +585,37 @@ const hoveredNodeId = ref<string | null>(null)
 const isOpenPersonEditModal = ref(false)
 
 /**
- * Цвет заголовка карточки в зависимости от пола персоны.
+ * Цвет заголовка карточки в зависимости от пола персоны (Concept A).
  * @param {Person} node - персона, для которой подбирается цвет
  * @returns {string} hex-цвет фона заголовка
  */
 const getTitleBackgroundColor = (node: Person) => {
   if (node.gender === Gender.MALE) {
-    return '#0069a8'
+    return '#3B82F6'
   }
   if (node.gender === Gender.FEMALE) {
-    return '#9810fa'
+    return '#9333EA'
   }
-  return '#4a5565'
+  return '#6B7280'
 }
 
 // --- Функции ---
+
+/**
+ * Цвет линии связи по её типу (Concept A): кровная — серо-синяя, брак — фиолетовая, усыновление — янтарная.
+ * @param {RelationshipType} type - тип связи
+ * @returns {string} hex-цвет обводки
+ */
+const getLinkStrokeColor = (type: RelationshipType) => {
+  switch (type) {
+    case RelationshipType.BLOOD:
+      return '#64748B'
+    case RelationshipType.ADOPTION:
+      return '#F59E0B'
+    default:
+      return '#8B5CF6'
+  }
+}
 
 /**
  * Создаёт новую персону в центре сцены (делегирование в store).
@@ -480,16 +650,14 @@ const getLinkConfig = (link: Relationship) => {
 
   const result: Konva.LineConfig = {
     points: calculateBezier(start.x, start.y, end.x, end.y, getLinkAxis(link.type)),
-    stroke: link.type === RelationshipType.BLOOD ? '#00a6f4' : '#ff6900',
+    stroke: getLinkStrokeColor(link.type),
     strokeWidth: selectedRelationshipId.value === link.id ? 4 : 2,
     bezier: true,
     lineCap: 'round',
   }
 
-  if (from.gender === Gender.MALE && link.type === RelationshipType.BLOOD) {
-    result.strokeLinearGradientStartPoint = { x: start.x, y: start.y }
-    result.strokeLinearGradientEndPoint = { x: end.x, y: end.y }
-    result.strokeLinearGradientColorStops = [0, '#ff6900', 1, '#00a6f4']
+  if (link.type === RelationshipType.ADOPTION) {
+    result.dash = [5, 5]
   }
 
   return result
@@ -514,21 +682,13 @@ const getPendingLinkConfig = () => {
       pendingLink.value.mouseY,
       getLinkAxis(pendingLink.value.type),
     ),
-    stroke: pendingLink.value.type === RelationshipType.BLOOD ? '#00a6f4' : '#ff6900',
+    stroke: getLinkStrokeColor(pendingLink.value.type),
     strokeWidth: 2,
     bezier: true,
     dash: [5, 5],
     listening: false,
     lineCap: 'round',
     lineJoin: 'round',
-  }
-  if (from.gender === Gender.MALE && pendingLink.value.type === RelationshipType.BLOOD) {
-    result.strokeLinearGradientStartPoint = { x: start.x, y: start.y }
-    result.strokeLinearGradientEndPoint = {
-      x: pendingLink.value.mouseX,
-      y: pendingLink.value.mouseY,
-    }
-    result.strokeLinearGradientColorStops = [0, '#ff6900', 1, '#00a6f4']
   }
   return result
 }
@@ -683,6 +843,12 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
+  const onResize = () => {
+    stageConfig.width = window.innerWidth
+    stageConfig.height = window.innerHeight - 40
+  }
+  window.addEventListener('resize', onResize)
+  onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 })
 
 onBeforeUnmount(() => {
@@ -709,6 +875,7 @@ const openContextMenu = (e: Konva.KonvaEventObject<MouseEvent>, nodeId: string) 
   menuState.y = container.top + pointer.y
   menuState.nodeId = nodeId
   menuState.linkId = null
+  menuState.worldPos = null
   menuState.visible = true
 
   // Закрываем меню при клике в любом месте
@@ -734,9 +901,51 @@ const openLinkContextMenu = (e: Konva.KonvaEventObject<MouseEvent>, linkId: stri
   menuState.y = container.top + pointer.y
   menuState.linkId = linkId
   menuState.nodeId = null
+  menuState.worldPos = null
   menuState.visible = true
 
   window.addEventListener('click', closeContextMenu, { once: true })
+}
+
+/**
+ * Контекстное меню пустого холста (ПКМ): предлагает добавить персону в точке клика.
+ * @param {Konva.KonvaEventObject<MouseEvent>} e - событие клика по фону сцены
+ */
+const openCanvasContextMenu = (e: Konva.KonvaEventObject<MouseEvent>) => {
+  // Только по пустому месту: клик по ноде/связи обрабатывается ими самими
+  if (e.target !== e.target.getStage()) return
+
+  e.evt.preventDefault()
+  e.cancelBubble = true
+
+  const stage = getStage()
+  if (!stage) return
+  const container = stage.container().getBoundingClientRect()
+  const pointer = stage.getPointerPosition()
+  if (!pointer) return
+
+  // Экранная точка → мировые координаты (учёт зума и смещения stage)
+  const worldPos = stage.getAbsoluteTransform().copy().invert().point(pointer)
+
+  menuState.x = container.left + pointer.x
+  menuState.y = container.top + pointer.y
+  menuState.nodeId = null
+  menuState.linkId = null
+  menuState.worldPos = { x: worldPos.x, y: worldPos.y }
+  menuState.visible = true
+
+  window.addEventListener('click', closeContextMenu, { once: true })
+}
+
+/**
+ * Создание персоны в мировых координатах из контекстного меню холста.
+ * @param {{ x: number; y: number }} worldPos - точка центра карточки в мировых координатах
+ */
+const addPersonAt = (worldPos: { x: number; y: number }) => {
+  const stageRefValue = stageRef.value
+  if (!stageRefValue) return
+  familyStore.addPerson(stageRefValue, worldPos)
+  closeContextMenu()
 }
 
 /**

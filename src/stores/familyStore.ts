@@ -29,6 +29,40 @@ function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
 const STORAGE_KEY = 'moirai:graph:v1'
 
 /**
+ * Ключ localStorage для UI-предпочтений (видимость легенды).
+ */
+const PREFS_KEY = 'moirai:prefs:v1'
+
+interface UiPrefs {
+  showLegend?: boolean
+}
+
+/**
+ * Читает UI-предпочтения из localStorage; битые данные → undefined.
+ */
+function loadUiPrefs(): UiPrefs | undefined {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    if (!raw) return undefined
+    return JSON.parse(raw) as UiPrefs
+  } catch (e) {
+    console.warn('Не удалось загрузить UI-предпочтения:', e)
+    return undefined
+  }
+}
+
+/**
+ * Сохраняет UI-предпочтения в localStorage. Ошибки не ломают работу редактора.
+ */
+function persistUiPrefs(prefs: UiPrefs) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+  } catch (e) {
+    console.warn('Не удалось сохранить UI-предпочтения:', e)
+  }
+}
+
+/**
  * Сохраняет граф в localStorage. Ошибки квоты/доступа не ломают работу редактора:
  * пользователь получает тост с предупреждением, данные продолжают жить в памяти.
  */
@@ -56,6 +90,18 @@ export const useFamilyStore = defineStore('family', () => {
   // Выделение (T9.0): выбранная персона / связь — для подсветки и контекстного меню
   const selectedPersonId = ref<string | null>(null)
   const selectedRelationshipId = ref<string | null>(null)
+
+  // UI-предпочтения: видимость легенды (persist в localStorage)
+  const savedPrefs = loadUiPrefs()
+  const showLegend = ref(savedPrefs?.showLegend ?? true)
+
+  /**
+   * Переключает видимость легенды связей и сохраняет предпочтение.
+   */
+  const toggleLegend = () => {
+    showLegend.value = !showLegend.value
+    persistUiPrefs({ showLegend: showLegend.value })
+  }
 
   /**
    * Выбирает персону и сбрасывает выделение связи.
@@ -111,20 +157,32 @@ export const useFamilyStore = defineStore('family', () => {
   }, 300)
 
   /**
-   * Создаёт новую персону по центру видимой области сцены (размеры холста,
-   * а не окна — под шапкой редактора) с учётом зума и смещения stage.
+   * Создаёт новую персону: по умолчанию — по центру видимой области сцены
+   * (размеры холста, а не окна — под шапкой редактора) с учётом зума и смещения stage;
+   * при явных мировых координатах — центрирует карточку в этой точке
+   * (ПКМ «Добавить персону здесь»).
    * @param {{ getStage(): Konva.Stage }} stageRef - ссылка на vue-konva stage
+   * @param {{ x: number; y: number }} [worldPos] - точка мировых координат для центра карточки
    */
-  const addPerson = (stageRef: { getStage(): Konva.Stage }) => {
+  const addPerson = (stageRef: { getStage(): Konva.Stage }, worldPos?: { x: number; y: number }) => {
     const id = createId()
     const stage = stageRef.getStage()
-    // Вычисляем центр холста с учетом текущего зума и смещения
-    const x = (stage.width() / 2 - stage.x()) / stage.scaleX()
-    const y = (stage.height() / 2 - stage.y()) / stage.scaleY()
+
+    let centerWorldX: number
+    let centerWorldY: number
+    if (worldPos) {
+      centerWorldX = worldPos.x
+      centerWorldY = worldPos.y
+    } else {
+      // Вычисляем центр холста с учетом текущего зума и смещения
+      centerWorldX = (stage.width() / 2 - stage.x()) / stage.scaleX()
+      centerWorldY = (stage.height() / 2 - stage.y()) / stage.scaleY()
+    }
+
     persons.value[id] = {
       id,
-      x: x - CARD_SIZE.width / 2,
-      y: y - CARD_SIZE.height / 2,
+      x: centerWorldX - CARD_SIZE.width / 2,
+      y: centerWorldY - CARD_SIZE.height / 2,
       firstName: 'UNKNOWN',
       lastName: '',
       gender: Gender.UNKNOWN,
@@ -252,6 +310,8 @@ export const useFamilyStore = defineStore('family', () => {
     relationshipList,
     selectedPersonId,
     selectedRelationshipId,
+    showLegend,
+    toggleLegend,
     selectPerson,
     selectRelationship,
     getPerson,

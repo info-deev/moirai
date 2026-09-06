@@ -3,8 +3,15 @@ import logoSvgUrl from '@/assets/Deev-Family-Symbol-free.svg'
 import { downloadBlob } from './download'
 
 /**
+ * Флаг Konva-слоя, исключающий его из PNG-экспорта (сетка холста).
+ * Слои с этим атрибутом скрываются в клоне сцены перед `toBlob`.
+ */
+export const NON_EXPORTABLE_LAYER_ATTR = 'nonExportable'
+
+/**
  * Экспорт сцены в PNG (фикс T8.5): клонирует stage, ждёт загрузки логотипа
- * (без setTimeout), добавляет белый фон и логотип до `toBlob`, скачивает файл.
+ * (без setTimeout), скрывает слои-помощники (сетка холста, флаг nonExportable),
+ * добавляет белый фон и логотип до `toBlob`, скачивает файл.
  * @param {Konva.Stage} stage - исходная сцена
  * @returns {Promise<void>} резолвится после начала скачивания, отклоняется при ошибке
  */
@@ -19,6 +26,12 @@ export function exportStageToPng(stage: Konva.Stage): Promise<void> {
       tempStage.position({ x: 0, y: 0 })
 
       const box = tempStage.getClientRect({ skipTransform: false })
+
+      // Сетка и другие слои-помощники не попадают в PNG
+      for (const layer of tempStage.getLayers()) {
+        if (layer.getAttr(NON_EXPORTABLE_LAYER_ATTR)) layer.visible(false)
+      }
+
       const layer = tempStage.getLayers()[0]
       if (!layer) throw new Error('В сцене нет слоёв для экспорта')
 
