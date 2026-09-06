@@ -299,8 +299,8 @@
                 listening: false,
               }"
             />
-            <!-- Пины в стиле BaklavaJS: всегда видимы; при hover/выделении — увеличиваются с белым halo -->
-            <template v-if="hoveredNodeId === node.id || selectedPersonId === node.id">
+            <!-- Пины в стиле BaklavaJS: видны при hover или во время перетаскивания связи (pendingLink) -->
+            <template v-if="hoveredNodeId === node.id || pendingLink !== null">
               <!-- Halo входного пина (Input) -->
               <v-circle
                 :config="{
@@ -328,7 +328,7 @@
               :config="{
                 x: 0,
                 y: CARD_SIZE.height / 2,
-                radius: hoveredNodeId === node.id || selectedPersonId === node.id ? 6 : 4,
+                radius: hoveredNodeId === node.id || pendingLink !== null ? 6 : 4,
                 fill: '#ffffff',
                 stroke: '#4F46E5',
                 strokeWidth: 1.5,
@@ -342,7 +342,7 @@
               :config="{
                 x: CARD_SIZE.width / 2,
                 y: 0,
-                radius: hoveredNodeId === node.id || selectedPersonId === node.id ? 6 : 4,
+                radius: hoveredNodeId === node.id || pendingLink !== null ? 6 : 4,
                 fill: '#ffffff',
                 stroke: '#8B5CF6',
                 strokeWidth: 1.5,
@@ -356,7 +356,7 @@
               :config="{
                 x: CARD_SIZE.width,
                 y: CARD_SIZE.height / 2,
-                radius: hoveredNodeId === node.id || selectedPersonId === node.id ? 6 : 4,
+                radius: hoveredNodeId === node.id || pendingLink !== null ? 6 : 4,
                 fill: getTitleBackgroundColor(node),
                 stroke: '#ffffff',
                 strokeWidth: 1.5,
@@ -369,7 +369,7 @@
               :config="{
                 x: CARD_SIZE.width / 2,
                 y: CARD_SIZE.height,
-                radius: hoveredNodeId === node.id || selectedPersonId === node.id ? 6 : 4,
+                radius: hoveredNodeId === node.id || pendingLink !== null ? 6 : 4,
                 fill: '#8B5CF6',
                 stroke: '#ffffff',
                 strokeWidth: 1.5,
