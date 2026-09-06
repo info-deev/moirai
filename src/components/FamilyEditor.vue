@@ -2,8 +2,9 @@
   <div class="w-screen h-screen bg-white overflow-hidden flex flex-col font-sans select-none">
     <!-- Header UI -->
     <header
-      class="h-10 bg-white border-b border-[#E4E4E7] flex items-center px-3 gap-1 text-sm z-10"
+      class="h-10 bg-white border-b border-[#E4E4E7] flex items-center px-3 gap-1 text-sm z-40"
     >
+      <img :src="logoUrl" alt="" class="h-10 w-10 shrink-0 select-none p-1" />
       <div class="font-bold tracking-[.16em] text-[#18181B] mr-2 text-[13px] select-none">
         MOIRAI
       </div>
@@ -25,7 +26,7 @@
       </button>
 
       <!-- Dropdown «Файл»: импорт/экспорт, очистка -->
-      <div class="relative">
+      <div ref="fileMenuRef" class="relative">
         <button
           @click="fileMenuOpen = !fileMenuOpen"
           :class="[
@@ -97,7 +98,7 @@
 
       <RouterLink
         :to="{ name: 'help' }"
-        class="rounded px-2.5 py-1 text-xs border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] transition-colors"
+        class="ml-auto rounded px-2.5 py-1 text-xs bg-white hover:bg-[#F4F4F5] transition-colors"
       >
         Справка
       </RouterLink>
@@ -299,7 +300,9 @@
                 listening: false,
               }"
             />
-            <!-- Пины в стиле BaklavaJS: видны при hover или во время перетаскивания связи (pendingLink) -->
+            <!-- Пины в стиле BaklavaJS: скрыты по умолчанию, видны только при hover на карточку
+                 или во время перетаскивания связи (pendingLink). На ноде под курсором радиус 6,
+                 на остальных во время drag — 4. -->
             <template v-if="hoveredNodeId === node.id || pendingLink !== null">
               <!-- Halo входного пина (Input) -->
               <v-circle
@@ -321,61 +324,60 @@
                   listening: false,
                 }"
               />
+              <!-- Входной пин (Input): приём связи «кровная» -->
+              <v-circle
+                :config="{
+                  x: 0,
+                  y: CARD_SIZE.height / 2,
+                  radius: hoveredNodeId === node.id ? 6 : 4,
+                  fill: '#ffffff',
+                  stroke: '#4F46E5',
+                  strokeWidth: 1.5,
+                  onmouseup: () => finishLinking(node.id),
+                }"
+                @click="handlePinClick(node)"
+              />
+
+              <!-- Входной пин (Input) ♀: приём связи «брак» -->
+              <v-circle
+                :config="{
+                  x: CARD_SIZE.width / 2,
+                  y: 0,
+                  radius: hoveredNodeId === node.id ? 6 : 4,
+                  fill: '#ffffff',
+                  stroke: '#8B5CF6',
+                  strokeWidth: 1.5,
+                  onmouseup: () => finishLinking(node.id, RelationshipType.MARRIAGE),
+                }"
+                @click="handlePinClick(node)"
+              />
+
+              <!-- Выходной пин (Output): создание связи «кровная» -->
+              <v-circle
+                :config="{
+                  x: CARD_SIZE.width,
+                  y: CARD_SIZE.height / 2,
+                  radius: hoveredNodeId === node.id ? 6 : 4,
+                  fill: getTitleBackgroundColor(node),
+                  stroke: '#ffffff',
+                  strokeWidth: 1.5,
+                  onmousedown: (e: any) => startLinking(e, node.id),
+                }"
+              />
+
+              <!-- Выходной пин (Output) ♂: создание связи «брак» -->
+              <v-circle
+                :config="{
+                  x: CARD_SIZE.width / 2,
+                  y: CARD_SIZE.height,
+                  radius: hoveredNodeId === node.id ? 6 : 4,
+                  fill: '#8B5CF6',
+                  stroke: '#ffffff',
+                  strokeWidth: 1.5,
+                  onmousedown: (e: any) => startLinking(e, node.id, RelationshipType.MARRIAGE),
+                }"
+              />
             </template>
-
-            <!-- Входной пин (Input): приём связи «кровная» -->
-            <v-circle
-              :config="{
-                x: 0,
-                y: CARD_SIZE.height / 2,
-                radius: hoveredNodeId === node.id || pendingLink !== null ? 6 : 4,
-                fill: '#ffffff',
-                stroke: '#4F46E5',
-                strokeWidth: 1.5,
-                onmouseup: () => finishLinking(node.id),
-              }"
-              @click="handlePinClick(node)"
-            />
-
-            <!-- Входной пин (Input) ♀: приём связи «брак» -->
-            <v-circle
-              :config="{
-                x: CARD_SIZE.width / 2,
-                y: 0,
-                radius: hoveredNodeId === node.id || pendingLink !== null ? 6 : 4,
-                fill: '#ffffff',
-                stroke: '#8B5CF6',
-                strokeWidth: 1.5,
-                onmouseup: () => finishLinking(node.id, RelationshipType.MARRIAGE),
-              }"
-              @click="handlePinClick(node)"
-            />
-
-            <!-- Выходной пин (Output): создание связи «кровная» -->
-            <v-circle
-              :config="{
-                x: CARD_SIZE.width,
-                y: CARD_SIZE.height / 2,
-                radius: hoveredNodeId === node.id || pendingLink !== null ? 6 : 4,
-                fill: getTitleBackgroundColor(node),
-                stroke: '#ffffff',
-                strokeWidth: 1.5,
-                onmousedown: (e: any) => startLinking(e, node.id),
-              }"
-            />
-
-            <!-- Выходной пин (Output) ♂: создание связи «брак» -->
-            <v-circle
-              :config="{
-                x: CARD_SIZE.width / 2,
-                y: CARD_SIZE.height,
-                radius: hoveredNodeId === node.id || pendingLink !== null ? 6 : 4,
-                fill: '#8B5CF6',
-                stroke: '#ffffff',
-                strokeWidth: 1.5,
-                onmousedown: (e: any) => startLinking(e, node.id, RelationshipType.MARRIAGE),
-              }"
-            />
           </v-group>
         </v-layer>
       </v-stage>
@@ -405,12 +407,31 @@
           </button>
         </template>
         <template v-if="menuState.linkId">
+          <div class="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#71717A]">
+            Тип связи
+          </div>
           <button
-            @click="changeLinkType"
-            class="w-full text-left px-3 py-1.5 hover:bg-[#F4F4F5]"
+            v-for="option in relationshipTypeOptions"
+            :key="option.type"
+            @click="setLinkType(option.type)"
+            :class="[
+              'flex w-full items-center justify-between px-3 py-1.5 text-left transition-colors',
+              menuLink?.type === option.type ? 'bg-[#EEF2FF] text-[#4F46E5]' : 'hover:bg-[#F4F4F5]',
+            ]"
           >
-            {{ menuLink?.type === RelationshipType.ADOPTION ? 'Сделать кровной' : 'Сделать усыновлением' }}
+            {{ option.label }}
+            <svg
+              v-if="menuLink?.type === option.type"
+              class="w-3 h-3"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
           </button>
+          <div class="my-1 border-t border-[#E4E4E7]" />
           <button
             @click="deleteLink"
             class="w-full text-left px-3 py-1.5 text-red-600 transition-colors hover:bg-red-50"
@@ -479,10 +500,12 @@ import { useFamilyStore } from '@/stores/familyStore'
 import PersonEditModal from './PersonEditModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import { useToast } from '@/composables/useToast'
+import { useClickOutside } from '@/composables/useClickOutside'
 import { exportStageToPng } from '@/utils/exportPng'
 import { downloadBlob } from '@/utils/download'
 import { deserializeGraph, serializeGraph, type GraphData } from '@/utils/serialization'
 import { calculateBezier, getEndAnchor, getLinkAxis, getStartAnchor } from '@/utils/graphGeometry'
+import logoUrl from '@/assets/Deev-Family-Symbol-free.svg'
 
 interface PendingLink {
   fromId: string
@@ -524,6 +547,13 @@ const pendingGraph = ref<GraphData | null>(null)
  * Открыто ли выпадающее меню «Файл» в шапке редактора.
  */
 const fileMenuOpen = ref(false)
+
+// Контейнер блока «Файл» (кнопка + выпадающий список) для глобального click-outside
+const fileMenuRef = ref<HTMLElement | null>(null)
+
+useClickOutside([fileMenuRef], () => {
+  fileMenuOpen.value = false
+})
 
 /**
  * Выбор пункта меню «Файл»: закрывает меню и выполняет действие.
@@ -759,7 +789,8 @@ const handleStageMouseUp = () => {
 }
 
 /**
- * Клик по пустому месту сцены — сброс выделения (ноды/связи обрабатывают клик сами).
+ * Клик по пустому месту сцены — сброс выделения
+ * (ноды/связи обрабатывают клик сами; меню «Файл» закрывается глобальным click-outside).
  * @param {Konva.KonvaEventObject<MouseEvent>} e - событие клика
  */
 const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -1004,22 +1035,32 @@ const handleConfirmClearAll = () => {
 }
 
 /**
- * Связь, открытая в контекстном меню (для переключения типа Blood ↔ Adoption).
+ * Связь, открытая в контекстном меню (для переключения типа связи).
  */
-const menuLink = computed(() =>
-  relationshipList.value.find((link) => link.id === menuState.linkId) ?? null,
+const menuLink = computed(
+  () => relationshipList.value.find((link) => link.id === menuState.linkId) ?? null,
 )
 
 /**
- * Переключает тип связи из контекстного меню: кровная ↔ усыновление.
+ * Опции подменю «Тип связи»: явное переключение между всеми тремя типами.
  */
-const changeLinkType = () => {
-  if (!menuLink.value) return
-  const nextType =
-    menuLink.value.type === RelationshipType.ADOPTION
-      ? RelationshipType.BLOOD
-      : RelationshipType.ADOPTION
-  familyStore.changeRelationshipType(menuLink.value.id, nextType)
+const relationshipTypeOptions: { type: RelationshipType; label: string }[] = [
+  { type: RelationshipType.BLOOD, label: 'Кровная' },
+  { type: RelationshipType.ADOPTION, label: 'Усыновление' },
+  { type: RelationshipType.MARRIAGE, label: 'Брак' },
+]
+
+/**
+ * Устанавливает тип связи из контекстного меню (явный выбор любого из трёх типов).
+ * Повторный выбор текущего типа — no-op.
+ * @param {RelationshipType} type - новый тип связи
+ */
+const setLinkType = (type: RelationshipType) => {
+  const link = menuLink.value
+  if (!link) return
+  if (link.type !== type) {
+    familyStore.changeRelationshipType(link.id, type)
+  }
   closeContextMenu()
 }
 
@@ -1089,7 +1130,8 @@ const triggerFileInput = () => {
 
 /**
  * Обработчик выбора JSON-файла: читает и валидирует содержимое, после чего
- * показывает диалог подтверждения — текущие данные будут заменены.
+ * при непустом холсте показывает диалог подтверждения (текущие данные будут
+ * заменены), а при пустом — импортирует сразу.
  * @param {Event} event - событие change от file input
  */
 const onImportFileSelected = (event: Event) => {
@@ -1105,8 +1147,13 @@ const onImportFileSelected = (event: Event) => {
         error(`Импорт отклонён: ${result.error}`)
         return
       }
-      pendingGraph.value = result.data
-      confirmImport.visible = true
+      if (personList.value.length === 0) {
+        // Пустой холст — заменять нечего, импортируем без подтверждения
+        applyImportedGraph(result.data)
+      } else {
+        pendingGraph.value = result.data
+        confirmImport.visible = true
+      }
     } catch (e) {
       console.error('Ошибка при чтении JSON:', e)
       error('Не удалось прочитать JSON-файл')
@@ -1121,12 +1168,20 @@ const onImportFileSelected = (event: Event) => {
 }
 
 /**
+ * Заменяет граф валидированными данными из файла + тост.
+ * @param {GraphData} data - валидированные данные графа
+ */
+const applyImportedGraph = (data: GraphData) => {
+  familyStore.setGraph(data)
+  success('Данные успешно импортированы')
+}
+
+/**
  * Подтверждённый импорт: заменяет граф данными из файла + тост.
  */
 const handleConfirmImport = () => {
   if (pendingGraph.value) {
-    familyStore.setGraph(pendingGraph.value)
-    success('Данные успешно импортированы')
+    applyImportedGraph(pendingGraph.value)
   }
   cancelImport()
 }

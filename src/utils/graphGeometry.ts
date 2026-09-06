@@ -21,14 +21,14 @@ export function getLinkKey(from: string, to: string): string {
 
 /**
  * Стартовая якорная точка на карточке отправителя в зависимости от типа связи:
- * blood — середина правого края, остальные типы — середина нижнего края.
+ * blood/adoption — середина правого края (кровные пины), marriage — середина нижнего края.
  * @param {RelationshipType} type - тип связи
  * @param {number} x - X координата карточки отправителя
  * @param {number} y - Y координата карточки отправителя
  * @returns {Point} точка выхода кривой из карточки
  */
 export function getStartAnchor(type: RelationshipType, x: number, y: number): Point {
-  if (type === RelationshipType.BLOOD) {
+  if (type === RelationshipType.BLOOD || type === RelationshipType.ADOPTION) {
     return { x: x + CARD_SIZE.width, y: y + CARD_SIZE.height / 2 }
   }
   return { x: x + CARD_SIZE.width / 2, y: y + CARD_SIZE.height }
@@ -36,26 +36,26 @@ export function getStartAnchor(type: RelationshipType, x: number, y: number): Po
 
 /**
  * Конечная якорная точка на карточке получателя в зависимости от типа связи:
- * blood — середина левого края, остальные типы — середина верхнего края.
+ * blood/adoption — середина левого края (кровные пины), marriage — середина верхнего края.
  * @param {RelationshipType} type - тип связи
  * @param {number} x - X координата карточки получателя
  * @param {number} y - Y координата карточки получателя
  * @returns {Point} точка входа кривой в карточку
  */
 export function getEndAnchor(type: RelationshipType, x: number, y: number): Point {
-  if (type === RelationshipType.BLOOD) {
+  if (type === RelationshipType.BLOOD || type === RelationshipType.ADOPTION) {
     return { x, y: y + CARD_SIZE.height / 2 }
   }
   return { x: x + CARD_SIZE.width / 2, y }
 }
 
 /**
- * Ось изгиба кривой связи: blood — горизонтальная (X), остальные — вертикальная (Y).
+ * Ось изгиба кривой связи: blood/adoption — горизонтальная (X), marriage — вертикальная (Y).
  * @param {RelationshipType} type - тип связи
  * @returns {Axis} ось изгиба
  */
 export function getLinkAxis(type: RelationshipType): Axis {
-  return type === RelationshipType.BLOOD ? Axis.X : Axis.Y
+  return type === RelationshipType.BLOOD || type === RelationshipType.ADOPTION ? Axis.X : Axis.Y
 }
 
 /**

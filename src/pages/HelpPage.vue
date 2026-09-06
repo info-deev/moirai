@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import logoUrl from '@/assets/Deev-Family-Symbol-free.svg'
 
 // Краткие подсказки, отображаемые в виде списка «действие — результат»
 const shortcuts = [
@@ -16,15 +17,16 @@ const shortcuts = [
   <div class="min-h-screen bg-gray-100 font-sans">
     <!-- Шапка -->
     <header
-      class="h-10 bg-white border-b border-[#E4E4E7] flex items-center px-3 gap-2 text-sm z-10"
+      class="h-10 bg-white border-b border-[#E4E4E7] flex items-center px-3 gap-1 text-sm z-10"
     >
+      <img :src="logoUrl" alt="" class="h-10 w-10 shrink-0 select-none p-1" />
       <div class="font-bold tracking-[.16em] text-[#18181B] mr-2 text-[13px] select-none">
         MOIRAI
       </div>
       <span class="text-[#71717A] text-xs uppercase tracking-widest">Справка</span>
       <RouterLink
         to="/"
-        class="ml-auto rounded border border-[#E4E4E7] bg-white px-3 py-1 text-[#18181B] transition-colors hover:bg-[#F4F4F5] active:scale-95"
+        class="ml-auto rounded bg-white px-3 py-1 text-[#18181B] transition-colors hover:bg-[#F4F4F5] active:scale-95"
       >
         ← Вернуться к редактору
       </RouterLink>
@@ -127,11 +129,34 @@ const shortcuts = [
           </li>
         </ul>
         <p class="text-sm leading-relaxed text-gray-700">
-          Тип связи меняется из контекстного меню (ПКМ по линии): пункт «Сделать кровной» / «Сделать
-          усыновлением» переключает родство между двумя вариантами. Брак так не переключается — его
-          можно только удалить и пересоздать. Связь удаляется тем же меню: «Удалить связь».
+          Тип связи меняется из контекстного меню (ПКМ по линии): в подменю «Тип связи» выберите
+          любой из трёх вариантов — «Кровная», «Усыновление» или «Брак»; текущий тип помечен
+          галочкой. Связь удаляется тем же меню: «Удалить связь».
         </p>
       </section>
+
+      <section class="mb-6 rounded-lg bg-white p-5 shadow-sm">
+        <h2 class="mb-3 text-lg font-bold text-gray-900">Дети от нескольких браков</h2>
+        <p class="mb-2 text-sm leading-relaxed text-gray-700">
+          Если у персоны несколько супругов, раскладывайте карточки супругов вертикально — по одной
+          строке на каждого. Тогда кровная линия к ребёнку однозначно показывает, в каком браке он
+          родился.
+        </p>
+        <ul class="list-disc space-y-1 pl-5 text-sm leading-relaxed text-gray-700">
+          <li>
+            По умолчанию, и если у мужчины несколько жён: линия к ребёнку идёт напрямую от карточки
+            матери — карточки жён разделены по вертикали, поэтому сразу однозначно указано
+            материнство.
+          </li>
+          <li>
+            Если у женщины несколько мужей (зятей в дереве): линия к ребёнку идёт напрямую от
+            карточки отца — древо прерывается на дочери и род продолжается через мужчин, поэтому
+            линию ведем от зятя. Карточки мужей разделены по вертикали, что однозначно указывает на
+            отцовство.
+          </li>
+        </ul>
+      </section>
+
       <section class="mb-6 rounded-lg bg-white p-5 shadow-sm">
         <h2 class="mb-3 text-lg font-bold text-gray-900">Навигация по холсту</h2>
         <ul class="list-disc space-y-1 pl-5 text-sm leading-relaxed text-gray-700">

@@ -15,42 +15,42 @@ describe('getLinkKey', () => {
 })
 
 describe('getStartAnchor', () => {
-  it('blood: точка выхода — середина правого края карточки отправителя', () => {
-    expect(getStartAnchor(RelationshipType.BLOOD, 10, 20)).toEqual({
-      x: 10 + CARD_SIZE.width,
-      y: 20 + CARD_SIZE.height / 2,
-    })
+  it('blood/adoption: точка выхода — середина правого края карточки отправителя', () => {
+    const expected = { x: 10 + CARD_SIZE.width, y: 20 + CARD_SIZE.height / 2 }
+    expect(getStartAnchor(RelationshipType.BLOOD, 10, 20)).toEqual(expected)
+    expect(getStartAnchor(RelationshipType.ADOPTION, 10, 20)).toEqual(expected)
   })
 
-  it('adoption/marriage: точка выхода — середина нижнего края', () => {
-    const expected = { x: 10 + CARD_SIZE.width / 2, y: 20 + CARD_SIZE.height }
-    expect(getStartAnchor(RelationshipType.ADOPTION, 10, 20)).toEqual(expected)
-    expect(getStartAnchor(RelationshipType.MARRIAGE, 10, 20)).toEqual(expected)
+  it('marriage: точка выхода — середина нижнего края', () => {
+    expect(getStartAnchor(RelationshipType.MARRIAGE, 10, 20)).toEqual({
+      x: 10 + CARD_SIZE.width / 2,
+      y: 20 + CARD_SIZE.height,
+    })
   })
 })
 
 describe('getEndAnchor', () => {
-  it('blood: точка входа — середина левого края карточки получателя', () => {
-    expect(getEndAnchor(RelationshipType.BLOOD, 10, 20)).toEqual({
-      x: 10,
-      y: 20 + CARD_SIZE.height / 2,
-    })
+  it('blood/adoption: точка входа — середина левого края карточки получателя', () => {
+    const expected = { x: 10, y: 20 + CARD_SIZE.height / 2 }
+    expect(getEndAnchor(RelationshipType.BLOOD, 10, 20)).toEqual(expected)
+    expect(getEndAnchor(RelationshipType.ADOPTION, 10, 20)).toEqual(expected)
   })
 
-  it('adoption/marriage: точка входа — середина верхнего края', () => {
-    const expected = { x: 10 + CARD_SIZE.width / 2, y: 20 }
-    expect(getEndAnchor(RelationshipType.ADOPTION, 10, 20)).toEqual(expected)
-    expect(getEndAnchor(RelationshipType.MARRIAGE, 10, 20)).toEqual(expected)
+  it('marriage: точка входа — середина верхнего края', () => {
+    expect(getEndAnchor(RelationshipType.MARRIAGE, 10, 20)).toEqual({
+      x: 10 + CARD_SIZE.width / 2,
+      y: 20,
+    })
   })
 })
 
 describe('getLinkAxis', () => {
-  it('blood: горизонтальная ось изгиба (X)', () => {
+  it('blood/adoption: горизонтальная ось изгиба (X)', () => {
     expect(getLinkAxis(RelationshipType.BLOOD)).toBe(Axis.X)
+    expect(getLinkAxis(RelationshipType.ADOPTION)).toBe(Axis.X)
   })
 
-  it('adoption/marriage: вертикальная ось изгиба (Y)', () => {
-    expect(getLinkAxis(RelationshipType.ADOPTION)).toBe(Axis.Y)
+  it('marriage: вертикальная ось изгиба (Y)', () => {
     expect(getLinkAxis(RelationshipType.MARRIAGE)).toBe(Axis.Y)
   })
 })
