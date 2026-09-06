@@ -164,7 +164,10 @@ export const useFamilyStore = defineStore('family', () => {
    * @param {{ getStage(): Konva.Stage }} stageRef - ссылка на vue-konva stage
    * @param {{ x: number; y: number }} [worldPos] - точка мировых координат для центра карточки
    */
-  const addPerson = (stageRef: { getStage(): Konva.Stage }, worldPos?: { x: number; y: number }) => {
+  const addPerson = (
+    stageRef: { getStage(): Konva.Stage },
+    worldPos?: { x: number; y: number },
+  ) => {
     const id = createId()
     const stage = stageRef.getStage()
 
