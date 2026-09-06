@@ -1,48 +1,50 @@
-# moirai
+# Moirai
 
-This template should help get you started developing with Vue 3 in Vite.
+Интерактивный редактор родословного графа. Приложение позволяет строить схему семьи: добавлять людей, перетаскивать карточки по холсту, создавать связи между ними (кровное родство, усыновление, брак) и удалять элементы. Поддерживается импорт/экспорт данных в JSON и экспорт схемы в PNG.
 
-## Recommended IDE Setup
+## Стек
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- [Vue 3](https://vuejs.org/) + TypeScript (Composition API, `<script setup>`)
+- [Vite](https://vite.dev/)
+- [Konva](https://konvajs.org/) / [vue-konva](https://vue-konva.com/) — холст и граф
+- [Pinia](https://pinia.vuejs.org/) — состояние
+- [Vue Router](https://router.vuejs.org/)
+- [Tailwind CSS 4](https://tailwindcss.com/)
 
-## Recommended Browser Setup
+## Скрипты
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+| Скрипт               | Назначение                                |
+| -------------------- | ----------------------------------------- |
+| `npm run dev`        | Запуск dev-сервера Vite                   |
+| `npm run build`      | Type-check + production-сборка            |
+| `npm run preview`    | Локальный просмотр production-сборки      |
+| `npm run type-check` | Проверка типов (`vue-tsc`)                |
+| `npm run lint`       | oxlint + ESLint (с автофиксом)           |
+| `npm run format`     | Форматирование Prettier                   |
+| `npm run format:check` | Проверка форматирования (используется в CI) |
 
-## Type Support for `.vue` Imports in TS
+## Структура проекта
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+```
+src/
+├── App.vue               # Корневой компонент, <router-view />
+├── main.ts               # Точка входа (Pinia, Router, vue-konva)
+├── router/index.ts       # Маршруты: «/» → FamilyEditor
+├── components/
+│   ├── FamilyEditor.vue    # Основной редактор графа (Konva-сцена)
+│   └── PersonEditModal.vue # Модальное окно редактирования человека
+├── stores/familyStore.ts # Pinia-store: люди и связи графа
+├── types/types.ts        # Единые типы домена (Person, Relationship, Gender, ...)
+└── assets/               # Стили и логотип
+```
 
-## Customize configuration
+## Запуск
 
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+Требуется Node.js ≥ 24.
 
 ```sh
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
-
-```sh
-npm run build
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-npm run lint
-```
+Приложение откроется по адресу, указанному в выводе Vite (по умолчанию `http://localhost:5173`).
