@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { reactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import Konva from 'konva'
 import { CARD_SIZE, Gender, RelationshipType, type Person } from '@/types/types'
@@ -178,6 +179,18 @@ describe('familyStore', () => {
 
       expect(store.getPerson(id)?.firstName).toBe('Новое имя')
       expect(store.getPerson(id)?.x).toBe(15)
+    })
+
+    it('принимает reactive-данные (metadata-прокси) и не ломает снапшоты', () => {
+      store.setGraph({ persons: { a: makePerson('a') }, relationships: {} })
+      // Симуляция компонента: {...form} унаследовал бы reactive-прокси в metadata.
+      const form = reactive({ ...makePerson('a'), metadata: { note: 'x' } })
+      store.updatePerson({ ...form })
+
+      expect(store.getPerson('a')?.metadata).toEqual({ note: 'x' })
+      // captureSnapshot на «загрязнённом» состоянии не должен бросать DataCloneError.
+      expect(() => store.undo()).not.toThrow()
+      expect(store.getPerson('a')).toMatchObject(makePerson('a'))
     })
   })
   describe('removePerson', () => {
@@ -362,6 +375,191 @@ describe('familyStore', () => {
       expect(() => store.clearAll()).not.toThrow()
       expect(store.personList).toHaveLength(0)
       expect(warn).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('undo / redo', () => {
+    it('начальное состояние: история пуста, undo/redo невозможны', () => {
+      expect(store.canUndo).toBe(false)
+      expect(store.canRedo).toBe(false)
+    })
+
+    it('addPerson → undo возвращает пустой граф, redo восстанавливает персону', () => {
+      store.addPerson(mockStageRef())
+      const id = store.personList[0]?.id ?? ''
+      expect(store.canUndo).toBe(true)
+
+      store.undo()
+      expect(store.personList).toHaveLength(0)
+      expect(store.canUndo).toBe(false)
+      expect(store.canRedo).toBe(true)
+
+      store.redo()
+      expect(store.personList[0]?.id).toBe(id)
+      expect(store.canRedo).toBe(false)
+    })
+
+    it('removePerson: undo восстанавливает каскадно удалённые связи', () => {
+      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b') }, relationships: {} })
+      store.addRelationship('a', 'b', RelationshipType.BLOOD)
+
+      store.removePerson('a')
+      expect(store.personList).toHaveLength(1)
+      expect(store.relationshipList).toHaveLength(0)
+
+      store.undo()
+      expect(Object.keys(store.persons)).toEqual(['a', 'b'])
+      expect(store.relationshipList).toHaveLength(1)
+    })
+
+    it('updatePerson: undo возвращает старые поля формы', () => {
+      store.setGraph({ persons: { a: makePerson('a') }, relationships: {} })
+      store.updatePerson(makePerson('a', { firstName: 'Обновлено' }))
+
+      expect(store.getPerson('a')?.firstName).toBe('Обновлено')
+      store.undo()
+      expect(store.getPerson('a')?.firstName).toBe('Тест')
+    })
+
+    it('changeRelationshipType: undo возвращает прежний тип, redo применяет новый', () => {
+      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b') }, relationships: {} })
+      store.addRelationship('a', 'b', RelationshipType.BLOOD)
+
+      store.changeRelationshipType(store.relationshipList[0]?.id ?? '', RelationshipType.ADOPTION)
+      expect(store.relationshipList[0]?.type).toBe(RelationshipType.ADOPTION)
+
+      store.undo()
+      expect(store.relationshipList[0]?.type).toBe(RelationshipType.BLOOD)
+
+      store.redo()
+      expect(store.relationshipList[0]?.type).toBe(RelationshipType.ADOPTION)
+    })
+
+    it('removeRelationship: undo восстанавливает связь', () => {
+      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b') }, relationships: {} })
+      store.addRelationship('a', 'b', RelationshipType.BLOOD)
+
+      store.removeRelationship(store.relationshipList[0]?.id ?? '')
+      expect(store.relationshipList).toHaveLength(0)
+
+      store.undo()
+      expect(store.relationshipList).toHaveLength(1)
+    })
+
+    it('loadFromStorage и updatePosition не создают снапшоты', () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ persons: { a: makePerson('a') }, relationships: {} }),
+      )
+      expect(store.loadFromStorage()).toBe(true)
+      store.updatePosition('a', 10, 20)
+
+      expect(store.canUndo).toBe(false)
+    })
+
+    it('новое действие обрывает ветку redo', () => {
+      store.addPerson(mockStageRef())
+      store.addPerson(mockStageRef())
+      store.undo()
+      expect(store.canRedo).toBe(true)
+
+      store.addPerson(mockStageRef())
+      expect(store.canRedo).toBe(false)
+      expect(store.personList).toHaveLength(2)
+    })
+
+    it('undo/redo с пустыми стеками ничего не ломают', () => {
+      expect(() => store.undo()).not.toThrow()
+      expect(() => store.redo()).not.toThrow()
+    })
+  })
+
+  describe('группировка drag в один шаг истории', () => {
+    it('N промежуточных updatePosition между beginDrag/endDrag = 1 шаг', () => {
+      // Сид через loadFromStorage: он не трогает историю → чистая база (canUndo false).
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ persons: { a: makePerson('a') }, relationships: {} }),
+      )
+      expect(store.loadFromStorage()).toBe(true)
+
+      store.beginDrag('a')
+      for (let i = 1; i <= 5; i++) {
+        store.updatePosition('a', i * 10, i * 5)
+      }
+      store.endDrag('a')
+
+      // Всё перетаскивание — один шаг: одно undo откатывает позицию к (0, 0).
+      expect(store.canUndo).toBe(true)
+      store.undo()
+      expect(store.getPerson('a')?.x).toBe(0)
+      expect(store.getPerson('a')?.y).toBe(0)
+      expect(store.canUndo).toBe(false)
+    })
+
+    it('no-op drag (без движения) не создаёт шага истории', () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ persons: { a: makePerson('a') }, relationships: {} }),
+      )
+      expect(store.loadFromStorage()).toBe(true)
+
+      store.beginDrag('a')
+      store.endDrag('a')
+
+      expect(store.canUndo).toBe(false)
+    })
+
+    it('beginDrag/endDrag для несуществующей персоны безопасны', () => {
+      expect(() => store.beginDrag('ghost')).not.toThrow()
+      expect(() => store.endDrag('ghost')).not.toThrow()
+      expect(store.canUndo).toBe(false)
+    })
+
+    it('undo во время активного drag блокируется', () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ persons: { a: makePerson('a') }, relationships: {} }),
+      )
+      expect(store.loadFromStorage()).toBe(true)
+
+      store.beginDrag('a')
+      store.updatePosition('a', 30, 15)
+
+      // Undo заблокирован, пока идёт drag: позиция не откатывается.
+      store.undo()
+      expect(store.getPerson('a')?.x).toBe(30)
+
+      // После endDrag перетаскивание фиксируется одним шагом.
+      store.endDrag('a')
+      expect(store.canUndo).toBe(true)
+    })
+  })
+
+  describe('лимит истории', () => {
+    it('старые снапшоты отбрасываются сверх HISTORY_LIMIT (50)', () => {
+      for (let i = 0; i < 52; i++) {
+        store.addPerson(mockStageRef())
+      }
+
+      // 52 действия, но в стеке только 50 снапшотов: два старейших отброшены.
+      for (let i = 0; i < 50; i++) {
+        store.undo()
+      }
+      expect(store.canUndo).toBe(false)
+      expect(store.personList).toHaveLength(2)
+    })
+  })
+
+  describe('clearAll и история', () => {
+    it('очищает стеки undo/redo вместе с графом', () => {
+      store.addPerson(mockStageRef())
+      store.undo()
+
+      store.clearAll()
+
+      expect(store.canUndo).toBe(false)
+      expect(store.canRedo).toBe(false)
     })
   })
 })

@@ -1,5 +1,5 @@
 // stores/familyStore.ts
-import { computed, ref } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import { defineStore } from 'pinia'
 import Konva from 'konva'
 import { CARD_SIZE, Gender, RelationshipType, type Person, type Relationship } from '@/types/types'
@@ -24,6 +24,16 @@ function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
 }
 
 /**
+ * Глубокое копирование значения в plain-данные (без reactive-прокси Vue).
+ * JSON-цикл — тот же механизм, что и персистентность графа: результат содержит
+ * только сериализуемые значения и не несёт прокси, которые structuredClone
+ * не умеет клонировать (DataCloneError).
+ */
+function toPlain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+/**
  * Ключ localStorage для автосохранения графа (решение D10).
  */
 const STORAGE_KEY = 'moirai:graph:v1'
@@ -32,6 +42,19 @@ const STORAGE_KEY = 'moirai:graph:v1'
  * Ключ localStorage для UI-предпочтений (видимость легенды).
  */
 const PREFS_KEY = 'moirai:prefs:v1'
+
+/**
+ * Максимальная глубина истории Undo/Redo (только в памяти, не персистится).
+ */
+const HISTORY_LIMIT = 50
+
+/**
+ * Снапшот графа для истории Undo/Redo (plain-данные после structuredClone).
+ */
+interface GraphSnapshot {
+  persons: Record<string, Person>
+  relationships: Record<string, Relationship>
+}
 
 interface UiPrefs {
   showLegend?: boolean
@@ -128,6 +151,106 @@ export const useFamilyStore = defineStore('family', () => {
    */
   const getPerson = (id: string) => persons.value[id]
 
+  // ── История Undo/Redo ─────────────────────────────────────────────────
+  // Снапшоты состояния (а не inverse-операции): каскадные удаления и bulk-действия
+  // делают обратные операции хрупкими. Только в памяти, лимит HISTORY_LIMIT.
+
+  const undoStack = ref<GraphSnapshot[]>([])
+  const redoStack = ref<GraphSnapshot[]>([])
+  const canUndo = computed(() => undoStack.value.length > 0)
+  const canRedo = computed(() => redoStack.value.length > 0)
+
+  // Pending-снапшот активного drag: снимается в beginDrag и попадает в историю
+  // только если позиция реально изменилась (1 перетаскивание = 1 шаг).
+  let pendingDragSnapshot: GraphSnapshot | null = null
+
+  /**
+   * Делает deep-копию текущего графа (plain-данные, без ссылок на live-state).
+   * toRaw снимает reactive-прокси Vue: structuredClone не умеет клонировать прокси.
+   */
+  const captureSnapshot = (): GraphSnapshot =>
+    structuredClone({ persons: toRaw(persons.value), relationships: toRaw(relationships.value) })
+
+  /**
+   * Добавляет снапшот в конец стека, отбрасывая старые записи сверх лимита.
+   */
+  const appendWithLimit = (stack: GraphSnapshot[], snapshot: GraphSnapshot): GraphSnapshot[] => {
+    const next = [...stack, snapshot]
+    return next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next
+  }
+
+  /**
+   * Записывает состояние в undo-стек и обрывает ветку redo (стандартное поведение:
+   * новое действие делает отменённые шаги недоступными).
+   */
+  const pushHistory = (snapshot: GraphSnapshot) => {
+    undoStack.value = appendWithLimit(undoStack.value, snapshot)
+    redoStack.value = []
+  }
+
+  /**
+   * Применяет снапшот к live-state, сбрасывает «протухшее» выделение и персистит.
+   */
+  const applySnapshot = (snapshot: GraphSnapshot) => {
+    persons.value = snapshot.persons
+    relationships.value = snapshot.relationships
+    if (selectedPersonId.value && !persons.value[selectedPersonId.value]) {
+      selectedPersonId.value = null
+    }
+    if (selectedRelationshipId.value && !relationships.value[selectedRelationshipId.value]) {
+      selectedRelationshipId.value = null
+    }
+    persistGraph(persons.value, relationships.value)
+  }
+
+  /**
+   * Отменяет последнее действие: текущее состояние уходит в redo-стек.
+   */
+  const undo = () => {
+    if (pendingDragSnapshot !== null || undoStack.value.length === 0) return
+    const previous = undoStack.value.at(-1)
+    if (!previous) return
+    undoStack.value = undoStack.value.slice(0, -1)
+    redoStack.value = appendWithLimit(redoStack.value, captureSnapshot())
+    applySnapshot(previous)
+  }
+
+  /**
+   * Повторяет отменённое действие: текущее состояние уходит в undo-стек.
+   */
+  const redo = () => {
+    if (pendingDragSnapshot !== null || redoStack.value.length === 0) return
+    const next = redoStack.value.at(-1)
+    if (!next) return
+    redoStack.value = redoStack.value.slice(0, -1)
+    undoStack.value = appendWithLimit(undoStack.value, captureSnapshot())
+    applySnapshot(next)
+  }
+
+  /**
+   * Начало перетаскивания: снимает pending-снапшот (в историю пока не попадает).
+   * @param {string} id - идентификатор перетаскиваемой персоны
+   */
+  const beginDrag = (id: string) => {
+    if (!persons.value[id]) return
+    pendingDragSnapshot = captureSnapshot()
+  }
+
+  /**
+   * Конец перетаскивания: если позиция изменилась — записывает один шаг в историю,
+   * иначе (клик без движения) отбрасывает снапшот.
+   * @param {string} id - идентификатор перетаскиваемой персоны
+   */
+  const endDrag = (id: string) => {
+    const snapshot = pendingDragSnapshot
+    pendingDragSnapshot = null
+    if (!snapshot) return
+    const before = snapshot.persons[id]
+    const after = persons.value[id]
+    if (!before || !after || (before.x === after.x && before.y === after.y)) return
+    pushHistory(snapshot)
+  }
+
   /**
    * Обновляет координаты персоны (синхронно, без дебаунса).
    * @param {string} id - идентификатор персоны
@@ -182,6 +305,7 @@ export const useFamilyStore = defineStore('family', () => {
       centerWorldY = (stage.height() / 2 - stage.y()) / stage.scaleY()
     }
 
+    pushHistory(captureSnapshot())
     persons.value[id] = {
       id,
       x: centerWorldX - CARD_SIZE.width / 2,
@@ -198,6 +322,8 @@ export const useFamilyStore = defineStore('family', () => {
    * @param {string} id - идентификатор персоны
    */
   const removePerson = (id: string) => {
+    if (!persons.value[id]) return
+    pushHistory(captureSnapshot())
     delete persons.value[id]
     // Каскадно удаляем все связи, где нода — отправитель или получатель
     for (const [key, relationship] of Object.entries(relationships.value)) {
@@ -219,6 +345,7 @@ export const useFamilyStore = defineStore('family', () => {
     const key = getLinkKey(from, to)
     // Защита от дублей по ключу
     if (relationships.value[key]) return
+    pushHistory(captureSnapshot())
     relationships.value[key] = { id: createId(), from, to, type }
     persistGraph(persons.value, relationships.value)
   }
@@ -228,11 +355,12 @@ export const useFamilyStore = defineStore('family', () => {
    * @param {string} id - идентификатор связи
    */
   const removeRelationship = (id: string) => {
-    for (const [key, relationship] of Object.entries(relationships.value)) {
-      if (relationship.id === id) {
-        delete relationships.value[key]
-      }
-    }
+    const entry = Object.entries(relationships.value).find(
+      ([, relationship]) => relationship.id === id,
+    )
+    if (!entry) return
+    pushHistory(captureSnapshot())
+    delete relationships.value[entry[0]]
     if (selectedRelationshipId.value === id) selectedRelationshipId.value = null
     persistGraph(persons.value, relationships.value)
   }
@@ -243,11 +371,10 @@ export const useFamilyStore = defineStore('family', () => {
    * @param {RelationshipType} type - новый тип связи
    */
   const changeRelationshipType = (id: string, type: RelationshipType) => {
-    for (const relationship of Object.values(relationships.value)) {
-      if (relationship.id === id) {
-        relationship.type = type
-      }
-    }
+    const relationship = Object.values(relationships.value).find((r) => r.id === id)
+    if (!relationship || relationship.type === type) return
+    pushHistory(captureSnapshot())
+    relationship.type = type
     persistGraph(persons.value, relationships.value)
   }
 
@@ -256,6 +383,7 @@ export const useFamilyStore = defineStore('family', () => {
    * @param {GraphData} data - валидированные данные графа
    */
   const setGraph = (data: GraphData) => {
+    pushHistory(captureSnapshot())
     persons.value = data.persons
     relationships.value = data.relationships
     selectedPersonId.value = null
@@ -268,6 +396,9 @@ export const useFamilyStore = defineStore('family', () => {
    * @param {string} personId - идентификатор персоны
    */
   const removeIncomingRelationships = (personId: string) => {
+    const hasIncoming = Object.values(relationships.value).some((r) => r.to === personId)
+    if (!hasIncoming) return
+    pushHistory(captureSnapshot())
     for (const [key, relationship] of Object.entries(relationships.value)) {
       if (relationship.to === personId) {
         delete relationships.value[key]
@@ -281,7 +412,9 @@ export const useFamilyStore = defineStore('family', () => {
    * @param {Person} person - обновлённая персона
    */
   const updatePerson = (person: Person) => {
-    persons.value[person.id] = person
+    if (!persons.value[person.id]) return
+    pushHistory(captureSnapshot())
+    persons.value[person.id] = toPlain(person)
     persistGraph(persons.value, relationships.value)
   }
 
@@ -313,6 +446,9 @@ export const useFamilyStore = defineStore('family', () => {
     relationships.value = {}
     selectedPersonId.value = null
     selectedRelationshipId.value = null
+    undoStack.value = []
+    redoStack.value = []
+    pendingDragSnapshot = null
     try {
       localStorage.removeItem(STORAGE_KEY)
     } catch (e) {
@@ -344,5 +480,11 @@ export const useFamilyStore = defineStore('family', () => {
     setGraph,
     loadFromStorage,
     clearAll,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
+    beginDrag,
+    endDrag,
   }
 })
