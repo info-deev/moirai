@@ -494,6 +494,7 @@ import ZoomControls from './header/ZoomControls.vue'
 import { useToast } from '@/composables/useToast'
 import { exportStageToPng } from '@/utils/exportPng'
 import { downloadBlob } from '@/utils/download'
+import { computeFitToContent } from '@/utils/fitView'
 import { deserializeGraph, serializeGraph, type GraphData } from '@/utils/serialization'
 import { calculateBezier, getEndAnchor, getLinkAxis, getStartAnchor } from '@/utils/graphGeometry'
 import logoUrl from '@/assets/Deev-Family-Symbol-free.svg'
@@ -584,6 +585,9 @@ const { selectPerson, selectRelationship, toggleLegend } = familyStore
 const MIN_ZOOM = 0.25
 const MAX_ZOOM = 4
 const ZOOM_STEP = 1.2
+
+// Автоцентрирование после импорта: отступ контента от краёв viewport, px
+const FIT_VIEW_PADDING = 40
 
 // Высота шапки редактора (header h-10) — вычитается из viewport при расчёте высоты холста
 const HEADER_HEIGHT = 40
@@ -901,6 +905,26 @@ const resetView = () => {
   stage.scale({ x: 1, y: 1 })
   stage.position({ x: 0, y: 0 })
   stageConfig.scaleX = 1
+}
+
+/**
+ * Автоцентрирование сцены после импорта: вписывает все карточки во viewport
+ * (scale ≤ 1 — приближать сильнее 100% не нужно), синхронизирует счётчик зума.
+ */
+const fitToContent = () => {
+  const stage = getStage()
+  if (!stage) return
+
+  const transform = computeFitToContent(personList.value, stage.width(), stage.height(), {
+    minZoom: MIN_ZOOM,
+    maxZoom: 1,
+    padding: FIT_VIEW_PADDING,
+  })
+  if (!transform) return
+
+  stage.scale({ x: transform.scale, y: transform.scale })
+  stage.position({ x: transform.x, y: transform.y })
+  stageConfig.scaleX = transform.scale
 }
 
 /**
@@ -1272,11 +1296,13 @@ const onImportFileSelected = (event: Event) => {
 }
 
 /**
- * Заменяет граф валидированными данными из файла + тост.
+ * Заменяет граф валидированными данными из файла, центрирует сцену на
+ * импортированном контенте и показывает тост.
  * @param {GraphData} data - валидированные данные графа
  */
 const applyImportedGraph = (data: GraphData) => {
   familyStore.setGraph(data)
+  fitToContent()
   success('Данные успешно импортированы')
 }
 
