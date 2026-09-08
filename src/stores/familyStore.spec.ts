@@ -52,6 +52,7 @@ describe('familyStore', () => {
       expect(store.relationshipList).toEqual([])
       expect(store.selectedPersonId).toBeNull()
       expect(store.selectedRelationshipId).toBeNull()
+      expect(store.secondaryPersonId).toBeNull()
     })
   })
 
@@ -67,6 +68,84 @@ describe('familyStore', () => {
 
       store.selectPerson(null)
       expect(store.selectedPersonId).toBeNull()
+    })
+  })
+
+  describe('selectSecondaryPerson (multi-select для родства)', () => {
+    it('устанавливает вторичную персону, не трогая якорное выделение', () => {
+      store.selectPerson('a')
+      store.selectSecondaryPerson('b')
+
+      expect(store.selectedPersonId).toBe('a')
+      expect(store.secondaryPersonId).toBe('b')
+    })
+
+    it('Shift+клик по якорной персоне сбрасывает вторичное выделение', () => {
+      store.selectPerson('a')
+      store.selectSecondaryPerson('b')
+
+      store.selectSecondaryPerson('a')
+
+      expect(store.selectedPersonId).toBe('a')
+      expect(store.secondaryPersonId).toBeNull()
+    })
+
+    it('повторный Shift+клик по той же персоне снимает вторичное выделение', () => {
+      store.selectPerson('a')
+      store.selectSecondaryPerson('b')
+
+      store.selectSecondaryPerson('b')
+
+      expect(store.secondaryPersonId).toBeNull()
+    })
+
+    it('selectPerson (обычный клик) сбрасывает вторичное выделение', () => {
+      store.selectPerson('a')
+      store.selectSecondaryPerson('b')
+
+      store.selectPerson('c')
+
+      expect(store.selectedPersonId).toBe('c')
+      expect(store.secondaryPersonId).toBeNull()
+    })
+
+    it('null снимает вторичное выделение', () => {
+      store.selectPerson('a')
+      store.selectSecondaryPerson('b')
+
+      store.selectSecondaryPerson(null)
+
+      expect(store.secondaryPersonId).toBeNull()
+    })
+
+    it('removePerson сбрасывает вторичное выделение удалённой персоны', () => {
+      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b') }, relationships: {} })
+      store.selectPerson('a')
+      store.selectSecondaryPerson('b')
+
+      store.removePerson('b')
+
+      expect(store.secondaryPersonId).toBeNull()
+    })
+
+    it('setGraph сбрасывает вторичное выделение', () => {
+      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b') }, relationships: {} })
+      store.selectPerson('a')
+      store.selectSecondaryPerson('b')
+
+      store.setGraph({ persons: { c: makePerson('c') }, relationships: {} })
+
+      expect(store.secondaryPersonId).toBeNull()
+    })
+
+    it('clearAll сбрасывает вторичное выделение', () => {
+      store.setGraph({ persons: { a: makePerson('a'), b: makePerson('b') }, relationships: {} })
+      store.selectPerson('a')
+      store.selectSecondaryPerson('b')
+
+      store.clearAll()
+
+      expect(store.secondaryPersonId).toBeNull()
     })
   })
 

@@ -145,6 +145,32 @@
         </div>
       </div>
 
+      <!-- Баннер родства: A (клик) + B (Shift+клик). Термин или fallback-цепочка; × / Esc — сброс -->
+      <div
+        v-if="kinshipResult"
+        class="absolute top-3 left-3 z-30 flex items-center gap-2 rounded-lg border border-[#A7F3D0] bg-white/95 px-3 py-2 text-xs text-[#18181B] shadow-md backdrop-blur"
+      >
+        <span class="font-medium">{{ kinshipResult.anchorName }}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2">
+          <path d="M5 12h14" />
+          <path d="M13 6l6 6-6 6" />
+        </svg>
+        <span class="font-medium">{{ kinshipResult.targetName }}</span>
+        <span class="text-[#71717A]">·</span>
+        <span :class="kinshipResult.exact ? 'text-[#047857]' : 'text-[#B45309]'">
+          {{ kinshipResult.label }}
+        </span>
+        <button
+          @click="selectSecondaryPerson(null)"
+          class="ml-1 rounded p-0.5 text-[#9CA3AF] transition-colors hover:bg-[#F4F4F5] hover:text-[#18181B]"
+          title="Закрыть (Esc)"
+        >
+          <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+
       <!-- Легенда связей (Concept A): видимость — showLegend из store -->
       <div
         v-if="showLegend"
@@ -190,7 +216,7 @@
       <div
         class="pointer-events-none absolute bottom-4 right-4 z-30 rounded border border-[#E4E4E7] bg-white/90 px-2 py-1 text-[10px] text-[#71717A]"
       >
-        Колесо — зум · ЛКМ — перемещение · ПКМ — меню · Esc — отмена
+        Колесо — зум · ЛКМ — перемещение · ПКМ — меню · Shift+клик — родство · Esc — отмена
       </div>
 
       <v-stage
@@ -239,7 +265,7 @@
               oncontextmenu: (e: Konva.KonvaEventObject<MouseEvent>) => openContextMenu(e, node.id),
               onMouseenter: () => (hoveredNodeId = node.id),
               onMouseleave: () => (hoveredNodeId = null),
-              onclick: () => selectPerson(node.id),
+              onclick: (e: Konva.KonvaEventObject<MouseEvent>) => handleNodeClick(e, node),
             }"
           >
             <!-- Тело -->
@@ -495,6 +521,8 @@ import { useToast } from '@/composables/useToast'
 import { exportStageToPng } from '@/utils/exportPng'
 import { downloadBlob } from '@/utils/download'
 import { computeFitToContent } from '@/utils/fitView'
+import { findKinshipPath } from '@/utils/kinshipPath'
+import { describeKinship } from '@/utils/kinshipTerminology'
 import { deserializeGraph, serializeGraph, type GraphData } from '@/utils/serialization'
 import { calculateBezier, getEndAnchor, getLinkAxis, getStartAnchor } from '@/utils/graphGeometry'
 import logoUrl from '@/assets/Deev-Family-Symbol-free.svg'
@@ -577,9 +605,10 @@ const {
   relationshipList,
   selectedPersonId,
   selectedRelationshipId,
+  secondaryPersonId,
   showLegend,
 } = storeToRefs(familyStore)
-const { selectPerson, selectRelationship, toggleLegend } = familyStore
+const { selectPerson, selectSecondaryPerson, selectRelationship, toggleLegend } = familyStore
 
 // T8.4: границы зума и шаг кнопок панели
 const MIN_ZOOM = 0.25
@@ -665,16 +694,63 @@ const getCardOpacity = (node: Person): number => {
 }
 
 /**
- * Обводка карточки персоны: выбранная или совпавшая с поиском — индиго,
- * остальные — нейтральный серый.
+ * Обводка карточки персоны: якорное выделение — индиго, вторичное (родство) —
+ * изумрудное, совпавшая с поиском — индиго, остальные — нейтральный серый.
  */
 const getCardStroke = (node: Person) => {
+  const isSecondary = secondaryPersonId.value === node.id
   const isSelected = selectedPersonId.value === node.id
+  if (isSecondary) {
+    return { stroke: '#10B981', strokeWidth: 2 }
+  }
   if (isSelected || matchedPersonIds.value.has(node.id)) {
     return { stroke: '#4F46E5', strokeWidth: 2 }
   }
   return { stroke: '#E4E4E7', strokeWidth: 1 }
 }
+
+/**
+ * Клик по карточке персоны: обычный клик — якорное выделение (A),
+ * Shift+клик — вторичная персона (B) для расчёта родства.
+ * @param {Konva.KonvaEventObject<MouseEvent>} e - событие клика
+ * @param {Person} node - персона, по карточке которой кликнули
+ */
+const handleNodeClick = (e: Konva.KonvaEventObject<MouseEvent>, node: Person) => {
+  if (e.evt.shiftKey) {
+    familyStore.selectSecondaryPerson(node.id)
+    return
+  }
+  selectPerson(node.id)
+}
+
+// --- Расчёт родства (A — B) ---
+
+/**
+ * Родство якорной персоны A (selectedPersonId) и вторичной B (Shift+клик):
+ * кратчайший путь по графу + термин. null — пока не выбраны обе персоны,
+ * либо между ними нет пути в графе.
+ */
+const kinshipResult = computed(() => {
+  const anchorId = selectedPersonId.value
+  const targetId = secondaryPersonId.value
+  if (!anchorId || !targetId) return null
+
+  const path = findKinshipPath(persons.value, relationships.value, anchorId, targetId)
+  if (!path) return null
+
+  const description = describeKinship(persons.value, path)
+  const nameOf = (id: string) => {
+    const person = persons.value[id]
+    return person ? `${person.firstName} ${person.lastName}`.trim() : id
+  }
+
+  return {
+    anchorName: nameOf(anchorId),
+    targetName: nameOf(targetId),
+    label: description.label,
+    exact: description.exact,
+  }
+})
 
 // --- Функции ---
 
@@ -985,6 +1061,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   confirmClearAll.visible = false
   cancelImport()
   searchQuery.value = ''
+  selectSecondaryPerson(null)
 }
 
 /**

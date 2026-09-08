@@ -113,6 +113,9 @@ export const useFamilyStore = defineStore('family', () => {
   // Выделение (T9.0): выбранная персона / связь — для подсветки и контекстного меню
   const selectedPersonId = ref<string | null>(null)
   const selectedRelationshipId = ref<string | null>(null)
+  // Вторичное выделение для расчёта родства: якорь (A) — selectedPersonId,
+  // вторичная персона (B) ставится Shift+кликом через selectSecondaryPerson
+  const secondaryPersonId = ref<string | null>(null)
 
   // UI-предпочтения: видимость легенды (persist в localStorage)
   const savedPrefs = loadUiPrefs()
@@ -128,11 +131,26 @@ export const useFamilyStore = defineStore('family', () => {
 
   /**
    * Выбирает персону и сбрасывает выделение связи.
+   * Вторичное выделение (родство) тоже сбрасывается: одиночный клик — новое состояние.
    * @param {string | null} id - id персоны или null для снятия выделения
    */
   const selectPerson = (id: string | null) => {
     selectedPersonId.value = id
     selectedRelationshipId.value = null
+    secondaryPersonId.value = null
+  }
+
+  /**
+   * Устанавливает вторичную персону для расчёта родства (Shift+клик).
+   * Повторный Shift+клик по уже выбранной B или клик по якорной A — сброс.
+   * @param {string | null} id - id вторичной персоны или null для снятия
+   */
+  const selectSecondaryPerson = (id: string | null) => {
+    if (id !== null && (id === selectedPersonId.value || id === secondaryPersonId.value)) {
+      secondaryPersonId.value = null
+      return
+    }
+    secondaryPersonId.value = id
   }
 
   /**
@@ -196,6 +214,9 @@ export const useFamilyStore = defineStore('family', () => {
     relationships.value = snapshot.relationships
     if (selectedPersonId.value && !persons.value[selectedPersonId.value]) {
       selectedPersonId.value = null
+    }
+    if (secondaryPersonId.value && !persons.value[secondaryPersonId.value]) {
+      secondaryPersonId.value = null
     }
     if (selectedRelationshipId.value && !relationships.value[selectedRelationshipId.value]) {
       selectedRelationshipId.value = null
@@ -332,6 +353,7 @@ export const useFamilyStore = defineStore('family', () => {
       }
     }
     if (selectedPersonId.value === id) selectedPersonId.value = null
+    if (secondaryPersonId.value === id) secondaryPersonId.value = null
     persistGraph(persons.value, relationships.value)
   }
 
@@ -388,6 +410,7 @@ export const useFamilyStore = defineStore('family', () => {
     relationships.value = data.relationships
     selectedPersonId.value = null
     selectedRelationshipId.value = null
+    secondaryPersonId.value = null
     persistGraph(persons.value, relationships.value)
   }
 
@@ -446,6 +469,7 @@ export const useFamilyStore = defineStore('family', () => {
     relationships.value = {}
     selectedPersonId.value = null
     selectedRelationshipId.value = null
+    secondaryPersonId.value = null
     undoStack.value = []
     redoStack.value = []
     pendingDragSnapshot = null
@@ -463,9 +487,11 @@ export const useFamilyStore = defineStore('family', () => {
     relationshipList,
     selectedPersonId,
     selectedRelationshipId,
+    secondaryPersonId,
     showLegend,
     toggleLegend,
     selectPerson,
+    selectSecondaryPerson,
     selectRelationship,
     getPerson,
     updatePosition,
