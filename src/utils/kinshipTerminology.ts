@@ -175,12 +175,6 @@ function spouseParentTerm(anchorGender: Gender): string {
   return 'тесть или свёкор'
 }
 
-function childSpouseTerm(childGender: Gender): string {
-  if (childGender === Gender.MALE) return 'невестка'
-  if (childGender === Gender.FEMALE) return 'зять'
-  return 'зять или невестка'
-}
-
 function spouseSiblingTerm(targetGender: Gender): string {
   if (targetGender === Gender.MALE) return 'шурин'
   if (targetGender === Gender.FEMALE) return 'золовка'
