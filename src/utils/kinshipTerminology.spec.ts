@@ -101,7 +101,7 @@ describe('describeKinship', () => {
     )
   })
 
-  it('up2+down1 и up3+down1 → дядя/тётя', () => {
+  it('up2+down1 → дядя/тётя, up3+down1 → двоюродный дедушка/бабушка', () => {
     const uncle = path(['a', 'x', 'y', 'target'], ['up', 'up', 'down'])
     expect(describeKinship(persons(Gender.UNKNOWN, Gender.MALE), uncle).label).toBe(
       'дядя (3-е колено)',
@@ -112,7 +112,10 @@ describe('describeKinship', () => {
 
     const greatUncle = path(['a', 'x', 'y', 'z', 'target'], ['up', 'up', 'up', 'down'])
     expect(describeKinship(persons(Gender.UNKNOWN, Gender.MALE), greatUncle).label).toBe(
-      'дядя (4-е колено)',
+      'двоюродный дедушка (4-е колено)',
+    )
+    expect(describeKinship(persons(Gender.UNKNOWN, Gender.FEMALE), greatUncle).label).toBe(
+      'двоюродная бабушка (4-е колено)',
     )
   })
 
@@ -199,11 +202,11 @@ describe('describeKinship', () => {
     )
   })
 
-  it('немоноотонный сегмент вокруг брака [down, spouse] → fallback-цепочка', () => {
+  it('немоноотонный сегмент вокруг брака [up, down, spouse] → зять/невестка (супруг брата/сестры)', () => {
     const p = path(['a', 'x', 'y', 'target'], ['up', 'down', 'spouse'])
     expect(describeKinship(persons(Gender.MALE, Gender.UNKNOWN), p)).toEqual({
-      label: 'родитель → ребёнок → супруг',
-      exact: false,
+      label: 'зять или невестка (муж или жена брат или сестры) (2-е колено)',
+      exact: true,
     })
   })
 })
@@ -283,14 +286,14 @@ describe('describeKinship — прозрачные брачные мосты (р
     )
   })
 
-  it('[up ×4, spouse, down] → глубина вне таблицы → fallback-цепочка', () => {
+  it('[up ×4, spouse, down] → двоюродный прадедушка/прабабушка (глубина закрывается матрицей)', () => {
     const p = path(
       ['a', 'x', 'y', 'z', 'w', 'v', 'target'],
       ['up', 'up', 'up', 'up', 'spouse', 'down'],
     )
     expect(describeKinship(persons(Gender.UNKNOWN, Gender.MALE), p)).toEqual({
-      label: 'родитель → родитель → родитель → родитель → супруг → ребёнок',
-      exact: false,
+      label: 'двоюродный прадедушка (5-е колено)',
+      exact: true,
     })
   })
 
@@ -304,13 +307,13 @@ describe('describeKinship — прозрачные брачные мосты (р
     )
   })
 
-  it('[down, spouse] → невестка/зять (супруг ребёнка) по полу ребёнка', () => {
+  it('[down, spouse] → зять/невестка (супруг ребёнка) по полу цели и ребёнка', () => {
     const p = path(['a', 'x', 'target'], ['down', 'spouse'])
     expect(describeKinship(persons(Gender.UNKNOWN, Gender.UNKNOWN, Gender.MALE), p).label).toBe(
-      'невестка (в силу брака)',
+      'зять или невестка (муж или жена сына) (1-е колено)',
     )
     expect(describeKinship(persons(Gender.UNKNOWN, Gender.UNKNOWN, Gender.FEMALE), p).label).toBe(
-      'зять (в силу брака)',
+      'зять или невестка (муж или жена дочери) (1-е колено)',
     )
   })
 
@@ -324,23 +327,23 @@ describe('describeKinship — прозрачные брачные мосты (р
     )
   })
 
-  it('[down, down, spouse] → муж/жена внука по полу потомка и цели', () => {
+  it('[down, down, spouse] → зять/невестка (муж/жена внука) по полу потомка и цели', () => {
     const p = path(['a', 'x', 'y', 'target'], ['down', 'down', 'spouse'])
     expect(
       describeKinship(persons(Gender.UNKNOWN, Gender.MALE, undefined, Gender.MALE), p).label,
-    ).toBe('муж внука (2-е колено)')
+    ).toBe('зять (муж внука) (2-е колено)')
     expect(
       describeKinship(persons(Gender.UNKNOWN, Gender.FEMALE, undefined, Gender.MALE), p).label,
-    ).toBe('жена внука (2-е колено)')
+    ).toBe('невестка (жена внука) (2-е колено)')
     expect(
       describeKinship(persons(Gender.UNKNOWN, Gender.FEMALE, undefined, Gender.FEMALE), p).label,
-    ).toBe('жена внучки (2-е колено)')
+    ).toBe('невестка (жена внучки) (2-е колено)')
   })
 
   it('[down, down, spouse] с неизвестным полом потомка → «внука или внучки»', () => {
     const p = path(['a', 'x', 'y', 'target'], ['down', 'down', 'spouse'])
     expect(describeKinship(persons(Gender.UNKNOWN, Gender.MALE), p).label).toBe(
-      'муж внука или внучки (2-е колено)',
+      'зять (муж внук или внучки) (2-е колено)',
     )
   })
 })
