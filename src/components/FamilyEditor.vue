@@ -25,67 +25,60 @@
         Добавить
       </button>
 
-      <!-- Dropdown «Файл»: импорт/экспорт, очистка -->
-      <div ref="fileMenuRef" class="relative">
+      <!-- Undo/Redo: disabled-состояние привязано к canUndo/canRedo из стора -->
+      <div class="flex items-center gap-1">
         <button
-          @click="fileMenuOpen = !fileMenuOpen"
-          aria-haspopup="menu"
-          :aria-expanded="fileMenuOpen"
+          @click="handleUndo"
+          :disabled="!familyStore.canUndo"
           :class="[
-            'flex items-center gap-1 rounded px-2.5 py-1 text-xs transition-colors border',
-            fileMenuOpen
-              ? 'bg-[#F4F4F5] border-[#E4E4E7]'
-              : 'bg-white hover:bg-[#F4F4F5] border-transparent',
+            'rounded px-2 py-1 text-xs transition-colors border',
+            familyStore.canUndo
+              ? 'bg-white text-[#71717A] border-transparent hover:bg-[#F4F4F5]'
+              : 'bg-white text-[#D4D4D8] border-transparent cursor-not-allowed',
           ]"
+          title="Отменить (Ctrl+Z)"
         >
-          Файл
           <svg
-            class="w-3 h-3 text-[#71717A]"
+            class="w-3 h-3"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="2.5"
           >
-            <path d="m6 9 6 6 6-6" />
+            <path d="M9 14L4 9l5-5" />
+            <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
           </svg>
         </button>
-        <div
-          v-if="fileMenuOpen"
-          role="menu"
-          class="absolute left-0 top-full mt-1 w-48 rounded-lg border border-[#E4E4E7] bg-white py-1 shadow-xl z-50"
+        <button
+          @click="handleRedo"
+          :disabled="!familyStore.canRedo"
+          :class="[
+            'rounded px-2 py-1 text-xs transition-colors border',
+            familyStore.canRedo
+              ? 'bg-white text-[#71717A] border-transparent hover:bg-[#F4F4F5]'
+              : 'bg-white text-[#D4D4D8] border-transparent cursor-not-allowed',
+          ]"
+          title="Повторить (Ctrl+Shift+Z)"
         >
-          <button
-            role="menuitem"
-            @click="onFileMenuItem('import')"
-            class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
+          <svg
+            class="w-3 h-3"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
           >
-            Импорт JSON…
-          </button>
-          <button
-            role="menuitem"
-            @click="onFileMenuItem('export-json')"
-            class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
-          >
-            Экспорт в JSON
-          </button>
-          <button
-            role="menuitem"
-            @click="onFileMenuItem('export-png')"
-            class="w-full text-left px-3 py-1.5 text-xs hover:bg-[#F4F4F5]"
-          >
-            Экспорт в PNG
-          </button>
-          <div class="my-1 border-t border-[#E4E4E7]" />
-          <button
-            role="menuitem"
-            @click="onFileMenuItem('clear')"
-            :disabled="personList.length === 0"
-            class="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:pointer-events-none disabled:opacity-40"
-          >
-            Очистить всё
-          </button>
-        </div>
+            <path d="M15 14l5-5-5-5" />
+            <path d="M20 9H10a6 6 0 0 0 0 12h3" />
+          </svg>
+        </button>
       </div>
+
+      <!-- Dropdown «Файл»: импорт/экспорт, очистка -->
+      <FileMenu
+        v-model:open="fileMenuOpen"
+        :can-clear="personList.length > 0"
+        @action="onFileMenuItem"
+      />
 
       <!-- Переключатель UI: легенда связей (Concept A) -->
       <div class="flex items-center gap-1">
@@ -105,15 +98,7 @@
 
       <!-- Поиск по имени (case-insensitive): подсвечивает совпавшие карточки и
            приглушает остальные; Esc сбрасывает запрос (см. handleKeydown). -->
-      <input
-        v-model="searchQuery"
-        type="text"
-        spellcheck="false"
-        autocomplete="off"
-        placeholder="Поиск…"
-        aria-label="Поиск персоны по имени"
-        class="h-7 w-44 rounded border border-[#E4E4E7] bg-white px-2.5 text-xs text-[#18181B] placeholder:text-[#A1A1AA] transition-colors focus:border-[#4F46E5] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/20"
-      />
+      <SearchBar v-model="searchQuery" />
 
       <RouterLink
         :to="{ name: 'help' }"
@@ -160,6 +145,32 @@
         </div>
       </div>
 
+      <!-- Баннер родства: A (клик) + B (Shift+клик). Термин или fallback-цепочка; × / Esc — сброс -->
+      <div
+        v-if="kinshipResult"
+        class="absolute top-3 left-3 z-30 flex items-center gap-2 rounded-lg border border-[#A7F3D0] bg-white/95 px-3 py-2 text-xs text-[#18181B] shadow-md backdrop-blur"
+      >
+        <span class="font-medium">{{ kinshipResult.anchorName }}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2">
+          <path d="M5 12h14" />
+          <path d="M13 6l6 6-6 6" />
+        </svg>
+        <span class="font-medium">{{ kinshipResult.targetName }}</span>
+        <span class="text-[#71717A]">·</span>
+        <span :class="kinshipResult.exact ? 'text-[#047857]' : 'text-[#B45309]'">
+          {{ kinshipResult.label }}
+        </span>
+        <button
+          @click="selectSecondaryPerson(null)"
+          class="ml-1 rounded p-0.5 text-[#9CA3AF] transition-colors hover:bg-[#F4F4F5] hover:text-[#18181B]"
+          title="Закрыть (Esc)"
+        >
+          <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+
       <!-- Легенда связей (Concept A): видимость — showLegend из store -->
       <div
         v-if="showLegend"
@@ -194,37 +205,18 @@
       </div>
 
       <!-- T8.4: Панель зума (низ-центр) -->
-      <div
-        class="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-[#E4E4E7] bg-white/95 px-2 py-1 text-sm text-[#18181B] shadow-md backdrop-blur"
-      >
-        <button
-          @click="zoomBy(1 / 1.2)"
-          class="rounded px-2 py-0.5 transition-colors hover:bg-[#F4F4F5]"
-          title="Отдалить (−)"
-        >
-          −
-        </button>
-        <button
-          @click="resetView"
-          class="min-w-[64px] rounded px-1 text-center text-xs tabular-nums transition-colors hover:bg-[#F4F4F5]"
-          title="Сбросить вид (100%)"
-        >
-          {{ Math.round(stageConfig.scaleX * 100) }}%
-        </button>
-        <button
-          @click="zoomBy(1.2)"
-          class="rounded px-2 py-0.5 transition-colors hover:bg-[#F4F4F5]"
-          title="Приблизить (+)"
-        >
-          +
-        </button>
-      </div>
+      <ZoomControls
+        :zoom-percent="Math.round(stageConfig.scaleX * 100)"
+        @zoom-in="zoomBy(1.2)"
+        @zoom-out="zoomBy(1 / 1.2)"
+        @reset="resetView"
+      />
 
       <!-- T8.3: Подсказка по управлению (низ-право) -->
       <div
         class="pointer-events-none absolute bottom-4 right-4 z-30 rounded border border-[#E4E4E7] bg-white/90 px-2 py-1 text-[10px] text-[#71717A]"
       >
-        Колесо — зум · ЛКМ — перемещение · ПКМ — меню · Esc — отмена
+        Колесо — зум · ЛКМ — перемещение · ПКМ — меню · Shift+клик — родство · Esc — отмена
       </div>
 
       <v-stage
@@ -263,13 +255,17 @@
               y: node.y,
               draggable: true,
               opacity: getCardOpacity(node),
+              ondragstart: () => familyStore.beginDrag(node.id),
               ondragmove: (e: Konva.KonvaEventObject<MouseEvent>) => handleDragMove(e, node),
-              ondragend: (e: Konva.KonvaEventObject<MouseEvent>) =>
-                familyStore.debouncedUpdatePosition(node.id, e.target.x(), e.target.y()),
+              ondragend: (e: Konva.KonvaEventObject<MouseEvent>) => {
+                // Один drag = один шаг истории; затем дебаунс-персист финальной позиции.
+                familyStore.endDrag(node.id)
+                familyStore.debouncedUpdatePosition(node.id, e.target.x(), e.target.y())
+              },
               oncontextmenu: (e: Konva.KonvaEventObject<MouseEvent>) => openContextMenu(e, node.id),
               onMouseenter: () => (hoveredNodeId = node.id),
               onMouseleave: () => (hoveredNodeId = null),
-              onclick: () => selectPerson(node.id),
+              onclick: (e: Konva.KonvaEventObject<MouseEvent>) => handleNodeClick(e, node),
             }"
           >
             <!-- Тело -->
@@ -518,10 +514,15 @@ import { CARD_SIZE, Gender, RelationshipType, type Person, type Relationship } f
 import { useFamilyStore } from '@/stores/familyStore'
 import PersonEditModal from './PersonEditModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import FileMenu, { type FileAction } from './header/FileMenu.vue'
+import SearchBar from './header/SearchBar.vue'
+import ZoomControls from './header/ZoomControls.vue'
 import { useToast } from '@/composables/useToast'
-import { useClickOutside } from '@/composables/useClickOutside'
 import { exportStageToPng } from '@/utils/exportPng'
 import { downloadBlob } from '@/utils/download'
+import { computeFitToContent } from '@/utils/fitView'
+import { findKinshipPath } from '@/utils/kinshipPath'
+import { describeKinship } from '@/utils/kinshipTerminology'
 import { deserializeGraph, serializeGraph, type GraphData } from '@/utils/serialization'
 import { calculateBezier, getEndAnchor, getLinkAxis, getStartAnchor } from '@/utils/graphGeometry'
 import logoUrl from '@/assets/Deev-Family-Symbol-free.svg'
@@ -567,18 +568,11 @@ const pendingGraph = ref<GraphData | null>(null)
  */
 const fileMenuOpen = ref(false)
 
-// Контейнер блока «Файл» (кнопка + выпадающий список) для глобального click-outside
-const fileMenuRef = ref<HTMLElement | null>(null)
-
-useClickOutside([fileMenuRef], () => {
-  fileMenuOpen.value = false
-})
-
 /**
  * Выбор пункта меню «Файл»: закрывает меню и выполняет действие.
- * @param {'import' | 'export-json' | 'export-png' | 'clear'} action - ключ действия
+ * @param {FileAction} action - ключ действия
  */
-const onFileMenuItem = (action: 'import' | 'export-json' | 'export-png' | 'clear') => {
+const onFileMenuItem = (action: FileAction) => {
   fileMenuOpen.value = false
   switch (action) {
     case 'import':
@@ -611,14 +605,18 @@ const {
   relationshipList,
   selectedPersonId,
   selectedRelationshipId,
+  secondaryPersonId,
   showLegend,
 } = storeToRefs(familyStore)
-const { selectPerson, selectRelationship, toggleLegend } = familyStore
+const { selectPerson, selectSecondaryPerson, selectRelationship, toggleLegend } = familyStore
 
 // T8.4: границы зума и шаг кнопок панели
 const MIN_ZOOM = 0.25
 const MAX_ZOOM = 4
 const ZOOM_STEP = 1.2
+
+// Автоцентрирование после импорта: отступ контента от краёв viewport, px
+const FIT_VIEW_PADDING = 40
 
 // Высота шапки редактора (header h-10) — вычитается из viewport при расчёте высоты холста
 const HEADER_HEIGHT = 40
@@ -696,16 +694,63 @@ const getCardOpacity = (node: Person): number => {
 }
 
 /**
- * Обводка карточки персоны: выбранная или совпавшая с поиском — индиго,
- * остальные — нейтральный серый.
+ * Обводка карточки персоны: якорное выделение — индиго, вторичное (родство) —
+ * изумрудное, совпавшая с поиском — индиго, остальные — нейтральный серый.
  */
 const getCardStroke = (node: Person) => {
+  const isSecondary = secondaryPersonId.value === node.id
   const isSelected = selectedPersonId.value === node.id
+  if (isSecondary) {
+    return { stroke: '#10B981', strokeWidth: 2 }
+  }
   if (isSelected || matchedPersonIds.value.has(node.id)) {
     return { stroke: '#4F46E5', strokeWidth: 2 }
   }
   return { stroke: '#E4E4E7', strokeWidth: 1 }
 }
+
+/**
+ * Клик по карточке персоны: обычный клик — якорное выделение (A),
+ * Shift+клик — вторичная персона (B) для расчёта родства.
+ * @param {Konva.KonvaEventObject<MouseEvent>} e - событие клика
+ * @param {Person} node - персона, по карточке которой кликнули
+ */
+const handleNodeClick = (e: Konva.KonvaEventObject<MouseEvent>, node: Person) => {
+  if (e.evt.shiftKey) {
+    familyStore.selectSecondaryPerson(node.id)
+    return
+  }
+  selectPerson(node.id)
+}
+
+// --- Расчёт родства (A — B) ---
+
+/**
+ * Родство якорной персоны A (selectedPersonId) и вторичной B (Shift+клик):
+ * кратчайший путь по графу + термин. null — пока не выбраны обе персоны,
+ * либо между ними нет пути в графе.
+ */
+const kinshipResult = computed(() => {
+  const anchorId = selectedPersonId.value
+  const targetId = secondaryPersonId.value
+  if (!anchorId || !targetId) return null
+
+  const path = findKinshipPath(persons.value, relationships.value, anchorId, targetId)
+  if (!path) return null
+
+  const description = describeKinship(persons.value, path)
+  const nameOf = (id: string) => {
+    const person = persons.value[id]
+    return person ? `${person.firstName} ${person.lastName}`.trim() : id
+  }
+
+  return {
+    anchorName: nameOf(anchorId),
+    targetName: nameOf(targetId),
+    label: description.label,
+    exact: description.exact,
+  }
+})
 
 // --- Функции ---
 
@@ -939,10 +984,75 @@ const resetView = () => {
 }
 
 /**
+ * Автоцентрирование сцены после импорта: вписывает все карточки во viewport
+ * (scale ≤ 1 — приближать сильнее 100% не нужно), синхронизирует счётчик зума.
+ */
+const fitToContent = () => {
+  const stage = getStage()
+  if (!stage) return
+
+  const transform = computeFitToContent(personList.value, stage.width(), stage.height(), {
+    minZoom: MIN_ZOOM,
+    maxZoom: 1,
+    padding: FIT_VIEW_PADDING,
+  })
+  if (!transform) return
+
+  stage.scale({ x: transform.scale, y: transform.scale })
+  stage.position({ x: transform.x, y: transform.y })
+  stageConfig.scaleX = transform.scale
+}
+
+/**
+ * Проверяет, что фокус находится в текстовом поле (input/textarea/contentEditable),
+ * чтобы горячие клавиши редактора не конфликтовали с нативным undo внутри полей.
+ * @param {EventTarget | null} target - целевой элемент события
+ */
+const isTypingTarget = (target: EventTarget | null): boolean => {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable
+}
+
+/**
+ * Закрывает модалку редактирования, если undo/redo удалили персону, открытую в форме.
+ */
+const closeEditModalIfPersonGone = () => {
+  if (!isOpenPersonEditModal.value) return
+  if (familyStore.getPerson(menuState.nodeId ?? '') === undefined) {
+    isOpenPersonEditModal.value = false
+  }
+}
+
+/**
+ * Undo из кнопок шапки и хоткея Ctrl+Z: делегирует в стор, затем закрывает
+ * модалку редактирования, если персона была удалена.
+ */
+const handleUndo = () => {
+  familyStore.undo()
+  closeEditModalIfPersonGone()
+}
+
+/**
+ * Redo из кнопок шапки и хоткея Ctrl+Shift+Z: симметрично handleUndo.
+ */
+const handleRedo = () => {
+  familyStore.redo()
+  closeEditModalIfPersonGone()
+}
+
+/**
  * Обработчик клавиатуры: Esc — отмена создания связи, закрытие меню и диалогов,
- * сброс поискового запроса.
+ * сброс поискового запроса; Ctrl+Z / Ctrl+Shift+Z (Cmd на macOS) — Undo/Redo.
  */
 const handleKeydown = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    if (isTypingTarget(e.target)) return
+    e.preventDefault()
+    if (e.shiftKey) handleRedo()
+    else handleUndo()
+    return
+  }
   if (e.key !== 'Escape') return
   pendingLink.value = null
   fileMenuOpen.value = false
@@ -951,6 +1061,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   confirmClearAll.visible = false
   cancelImport()
   searchQuery.value = ''
+  selectSecondaryPerson(null)
 }
 
 /**
@@ -1262,11 +1373,13 @@ const onImportFileSelected = (event: Event) => {
 }
 
 /**
- * Заменяет граф валидированными данными из файла + тост.
+ * Заменяет граф валидированными данными из файла, центрирует сцену на
+ * импортированном контенте и показывает тост.
  * @param {GraphData} data - валидированные данные графа
  */
 const applyImportedGraph = (data: GraphData) => {
   familyStore.setGraph(data)
+  fitToContent()
   success('Данные успешно импортированы')
 }
 

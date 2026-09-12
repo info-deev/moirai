@@ -47,7 +47,10 @@ watch(
  * Сохранение формы: emit `save` с копией формы и закрытие модалки.
  */
 const handleSave = () => {
-  emit('save', { ...form })
+  // Глубокое копирование в plain-данные: {...form} унаследовал бы reactive-прокси
+  // вложенных полей (metadata), которые structuredClone не умеет клонировать.
+  const payload = JSON.parse(JSON.stringify(form)) as Person
+  emit('save', payload)
   emit('close')
 }
 </script>
